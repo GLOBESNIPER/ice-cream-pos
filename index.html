@@ -538,6 +538,158 @@
     grid-column: 1 / -1;
   }
 
+  /* Sales panel */
+  .tab-row { display: flex; gap: 8px; padding: 4px 20px 10px; flex-shrink: 0; }
+  .tab-btn {
+    flex: 1;
+    background: var(--surface2);
+    border: 1px solid rgba(167,139,250,.2);
+    color: var(--text-muted);
+    border-radius: 50px;
+    padding: 8px 0;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .tab-btn.active { background: var(--purple); color: white; border-color: var(--purple); }
+
+  .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+  .stat-tile { background: var(--surface2); border-radius: 14px; padding: 12px; }
+  .stat-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .06em; font-weight: 600; }
+  .stat-value { font-size: 20px; font-weight: 800; margin-top: 4px; }
+  .stat-value.profit { color: var(--success); }
+
+  .sales-section { margin-bottom: 16px; }
+  .sales-section h3 {
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 10px;
+  }
+
+  .bar-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .bar-row .ci-avatar { width: 30px; height: 30px; font-size: 12px; border-radius: 8px; }
+  .bar-info { flex: 1; min-width: 0; }
+  .bar-top { display: flex; justify-content: space-between; font-size: 13px; }
+  .bar-name { font-weight: 600; }
+  .bar-val { font-weight: 700; }
+  .bar-sub { font-size: 11px; color: var(--text-muted); }
+  .bar-track { height: 8px; background: var(--surface2); border-radius: 4px; overflow: hidden; margin-top: 4px; }
+  .bar-fill { height: 100%; background: var(--purple-light); border-radius: 4px; }
+
+  .day-chart { display: flex; align-items: flex-end; gap: 6px; height: 100px; }
+  .day-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; height: 100%; justify-content: flex-end; }
+  .day-bar { width: 100%; background: var(--purple-light); border-radius: 4px 4px 0 0; min-height: 2px; }
+  .day-bar.today { background: var(--pink); }
+  .day-lbl { font-size: 10px; color: var(--text-muted); }
+  .day-val { font-size: 10px; color: var(--text); font-weight: 700; }
+
+  .insight {
+    display: flex;
+    gap: 10px;
+    background: var(--surface2);
+    border-radius: 12px;
+    padding: 10px 12px;
+    margin-bottom: 8px;
+    font-size: 13px;
+    line-height: 1.45;
+  }
+  .insight b { color: var(--purple-light); }
+  .insight .tag {
+    flex-shrink: 0;
+    font-size: 11px;
+    font-weight: 800;
+    color: white;
+    background: var(--purple);
+    border-radius: 6px;
+    padding: 2px 7px;
+    height: fit-content;
+  }
+  .insight.warn .tag { background: var(--warn); color: #1a1030; }
+  .insight.warn b { color: var(--warn); }
+
+  .sale-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid rgba(255,255,255,.06);
+  }
+  .sale-row:last-child { border-bottom: none; }
+  .sr-ref { font-size: 13px; font-weight: 700; }
+  .sr-detail { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+  .sr-amounts { text-align: right; }
+  .sr-total { font-size: 14px; font-weight: 700; }
+  .sr-profit { font-size: 11px; color: var(--success); font-weight: 600; }
+
+  .empty-msg { text-align: center; color: var(--text-muted); font-size: 13px; padding: 20px 0; }
+
+  /* PIN modal */
+  .pin-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.75);
+    z-index: 400;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .2s;
+    backdrop-filter: blur(6px);
+  }
+  .pin-overlay.open { opacity: 1; pointer-events: all; }
+
+  .pin-box {
+    background: var(--surface);
+    border-radius: 20px;
+    padding: 24px 20px;
+    width: min(300px, 86vw);
+    text-align: center;
+  }
+  .pin-box.shake { animation: shake .35s; }
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    20%, 60% { transform: translateX(-8px); }
+    40%, 80% { transform: translateX(8px); }
+  }
+  .pin-title { font-size: 16px; font-weight: 700; }
+  .pin-sub { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+  .pin-dots { display: flex; justify-content: center; gap: 12px; margin: 18px 0; }
+  .pin-dot {
+    width: 12px; height: 12px;
+    border-radius: 50%;
+    background: var(--surface2);
+    border: 1px solid rgba(167,139,250,.3);
+  }
+  .pin-dot.filled { background: var(--purple-light); border-color: var(--purple-light); }
+  .pin-pad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .pin-key {
+    background: var(--surface2);
+    border: none;
+    border-radius: 14px;
+    padding: 14px 0;
+    color: var(--text);
+    font-size: 18px;
+    font-weight: 700;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .pin-key:active { background: var(--purple); }
+  .pin-key.ghost { background: none; font-size: 14px; color: var(--text-muted); }
+  .pin-cancel {
+    margin-top: 14px;
+    background: none;
+    border: none;
+    color: var(--pink);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
   ::-webkit-scrollbar { width: 4px; }
   ::-webkit-scrollbar-thumb { background: rgba(167,139,250,.3); border-radius: 2px; }
 
@@ -554,6 +706,7 @@
     <span class="page">Caisse</span>
   </div>
   <div class="header-actions">
+    <button class="hdr-btn" onclick="openSales()">Ventes</button>
     <button class="hdr-btn" onclick="openStock()">Stock</button>
     <button class="hdr-btn" onclick="openCart()">
       Panier
@@ -652,6 +805,46 @@
   </div>
 </div>
 
+<!-- Sales -->
+<div class="stock-overlay" id="salesOverlay" onclick="closeSales()"></div>
+<div class="stock-panel" id="salesPanel">
+  <div class="drawer-handle"></div>
+  <div class="drawer-header">
+    <span class="drawer-title">Ventes</span>
+    <button class="clear-btn" onclick="clearSales()">Effacer</button>
+  </div>
+  <div class="tab-row">
+    <button class="tab-btn active" data-period="today" onclick="setPeriod('today')">Aujourd'hui</button>
+    <button class="tab-btn" data-period="week" onclick="setPeriod('week')">7 jours</button>
+    <button class="tab-btn" data-period="all" onclick="setPeriod('all')">Tout</button>
+  </div>
+  <div class="stock-list" id="salesContent"></div>
+</div>
+
+<!-- PIN -->
+<div class="pin-overlay" id="pinOverlay">
+  <div class="pin-box" id="pinBox">
+    <div class="pin-title">Code PIN requis</div>
+    <div class="pin-sub" id="pinSub">Accès protégé</div>
+    <div class="pin-dots" id="pinDots"></div>
+    <div class="pin-pad">
+      <button class="pin-key" onclick="pinKey('1')">1</button>
+      <button class="pin-key" onclick="pinKey('2')">2</button>
+      <button class="pin-key" onclick="pinKey('3')">3</button>
+      <button class="pin-key" onclick="pinKey('4')">4</button>
+      <button class="pin-key" onclick="pinKey('5')">5</button>
+      <button class="pin-key" onclick="pinKey('6')">6</button>
+      <button class="pin-key" onclick="pinKey('7')">7</button>
+      <button class="pin-key" onclick="pinKey('8')">8</button>
+      <button class="pin-key" onclick="pinKey('9')">9</button>
+      <button class="pin-key ghost" onclick="pinClear()">C</button>
+      <button class="pin-key" onclick="pinKey('0')">0</button>
+      <button class="pin-key ghost" onclick="pinBack()">&larr;</button>
+    </div>
+    <button class="pin-cancel" onclick="closePin()">Annuler</button>
+  </div>
+</div>
+
 <script>
 // cost = purchase cost per piece, price = selling price per piece
 // perCarton = pieces per carton, initialStock = current inventory in pieces
@@ -672,6 +865,18 @@ const LOW_STOCK = 15;
 let cart = {}; // { productId: pieces }
 let orderCount = parseInt(localStorage.getItem('maalem_orders') || '0');
 let stock = loadStock();
+let salesLog = loadSales();
+let salesPeriod = 'today';
+
+function loadSales() {
+  try {
+    const s = JSON.parse(localStorage.getItem('maalem_sales'));
+    return Array.isArray(s) ? s : [];
+  } catch (e) { return []; }
+}
+function saveSales() {
+  localStorage.setItem('maalem_sales', JSON.stringify(salesLog.slice(-1000)));
+}
 
 function loadStock() {
   try {
@@ -851,6 +1056,17 @@ function checkout() {
   });
   saveStock();
 
+  // record sale
+  salesLog.push({
+    ref: orderCount,
+    ts: Date.now(),
+    total: getTotal(),
+    profit: getProfit(),
+    pieces: getTotalPieces(),
+    items: items.map(p => ({ id: p.id, name: p.name, qty: cart[p.id], price: p.price }))
+  });
+  saveSales();
+
   const now = new Date();
   const dateStr = now.toLocaleDateString('fr-MA', { day: '2-digit', month: '2-digit', year: 'numeric' });
   const timeStr = now.toLocaleTimeString('fr-MA', { hour: '2-digit', minute: '2-digit' });
@@ -887,8 +1103,59 @@ function newOrder() {
   closeReceipt();
 }
 
+/* PIN gate */
+const PIN_CODE = '9421';
+let pinUnlocked = false;
+let pinTarget = null;
+let pinEntry = '';
+
+function requirePin(target) {
+  if (pinUnlocked) { openProtected(target); return; }
+  pinTarget = target;
+  pinEntry = '';
+  renderPinDots();
+  document.getElementById('pinSub').textContent =
+    target === 'stock' ? 'Accès au stock' : 'Accès aux ventes';
+  document.getElementById('pinOverlay').classList.add('open');
+}
+function openProtected(t) {
+  t === 'stock' ? doOpenStock() : doOpenSales();
+}
+function pinKey(d) {
+  if (pinEntry.length >= 4) return;
+  pinEntry += d;
+  renderPinDots();
+  if (pinEntry.length === 4) {
+    if (pinEntry === PIN_CODE) {
+      pinUnlocked = true;
+      closePin();
+      openProtected(pinTarget);
+      if (navigator.vibrate) navigator.vibrate(30);
+    } else {
+      const box = document.getElementById('pinBox');
+      box.classList.add('shake');
+      if (navigator.vibrate) navigator.vibrate([60, 40, 60]);
+      setTimeout(() => {
+        box.classList.remove('shake');
+        pinEntry = '';
+        renderPinDots();
+      }, 380);
+    }
+  }
+}
+function pinBack() { pinEntry = pinEntry.slice(0, -1); renderPinDots(); }
+function pinClear() { pinEntry = ''; renderPinDots(); }
+function renderPinDots() {
+  document.getElementById('pinDots').innerHTML =
+    [0, 1, 2, 3].map(i => `<div class="pin-dot ${i < pinEntry.length ? 'filled' : ''}"></div>`).join('');
+}
+function closePin() {
+  document.getElementById('pinOverlay').classList.remove('open');
+}
+
 /* Stock panel */
-function openStock() {
+function openStock() { requirePin('stock'); }
+function doOpenStock() {
   renderStock();
   document.getElementById('stockOverlay').classList.add('open');
   document.getElementById('stockPanel').classList.add('open');
@@ -941,8 +1208,196 @@ function resetStock() {
   renderStock();
 }
 
+/* Sales panel */
+function openSales() { requirePin('sales'); }
+function doOpenSales() {
+  renderSales();
+  document.getElementById('salesOverlay').classList.add('open');
+  document.getElementById('salesPanel').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+function closeSales() {
+  document.getElementById('salesOverlay').classList.remove('open');
+  document.getElementById('salesPanel').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+function setPeriod(p) {
+  salesPeriod = p;
+  document.querySelectorAll('.tab-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.period === p));
+  renderSales();
+}
+
+function startOfDay(ts) {
+  const d = new Date(ts);
+  d.setHours(0, 0, 0, 0);
+  return d.getTime();
+}
+
+function filterSales() {
+  if (salesPeriod === 'today') {
+    const t0 = startOfDay(Date.now());
+    return salesLog.filter(s => s.ts >= t0);
+  }
+  if (salesPeriod === 'week') {
+    const t0 = startOfDay(Date.now()) - 6 * 86400000;
+    return salesLog.filter(s => s.ts >= t0);
+  }
+  return salesLog;
+}
+
+function aggregateByProduct(sales) {
+  const agg = {};
+  sales.forEach(s => s.items.forEach(it => {
+    const p = PRODUCTS.find(x => x.id === it.id);
+    if (!p) return;
+    if (!agg[it.id]) agg[it.id] = { product: p, qty: 0, revenue: 0, profit: 0 };
+    agg[it.id].qty += it.qty;
+    agg[it.id].revenue += it.qty * it.price;
+    agg[it.id].profit += it.qty * (it.price - p.cost);
+  }));
+  return Object.values(agg);
+}
+
+function computeInsights(filtered) {
+  const ins = [];
+  if (filtered.length) {
+    const arr = aggregateByProduct(filtered);
+    const topProfit = arr.slice().sort((a, b) => b.profit - a.profit)[0];
+    if (topProfit) {
+      ins.push({ tag: 'TOP', text: `<b>${topProfit.product.name}</b> rapporte le plus de bénéfice : <b>${fmt(topProfit.profit)}</b> (${topProfit.qty} pcs)` });
+    }
+    const totalRev = filtered.reduce((s, x) => s + x.total, 0);
+    const totalProf = filtered.reduce((s, x) => s + x.profit, 0);
+    const avg = totalRev / filtered.length;
+    const margin = totalRev > 0 ? Math.round(100 * totalProf / totalRev) : 0;
+    ins.push({ tag: 'MOY', text: `Panier moyen : <b>${fmt(avg)}</b> · marge moyenne <b>${margin}%</b>` });
+  }
+
+  // stock-out projection from last 7 days of sales
+  const weekAgo = startOfDay(Date.now()) - 6 * 86400000;
+  const sold7 = {};
+  salesLog.filter(s => s.ts >= weekAgo).forEach(s =>
+    s.items.forEach(it => { sold7[it.id] = (sold7[it.id] || 0) + it.qty; }));
+  let urgent = null;
+  PRODUCTS.forEach(p => {
+    const rate = (sold7[p.id] || 0) / 7;
+    if (rate > 0 && (stock[p.id] || 0) > 0) {
+      const days = Math.floor((stock[p.id] || 0) / rate);
+      if (urgent === null || days < urgent.days) urgent = { name: p.name, days };
+    }
+  });
+  if (urgent && urgent.days <= 10) {
+    ins.push({ tag: '!', warn: true, text: `Au rythme actuel, <b>${urgent.name}</b> sera épuisé dans ~${urgent.days} jour${urgent.days > 1 ? 's' : ''} — pensez à recommander` });
+  }
+
+  const outs = PRODUCTS.filter(p => (stock[p.id] || 0) <= 0).map(p => p.name);
+  const lows = PRODUCTS.filter(p => (stock[p.id] || 0) > 0 && stock[p.id] <= LOW_STOCK).map(p => p.name);
+  if (outs.length) ins.push({ tag: '!', warn: true, text: `Rupture de stock : <b>${outs.join(', ')}</b>` });
+  if (lows.length) ins.push({ tag: '!', warn: true, text: `Stock bas : <b>${lows.join(', ')}</b>` });
+
+  return ins;
+}
+
+function renderSales() {
+  const el = document.getElementById('salesContent');
+  const filtered = filterSales();
+
+  const revenue = filtered.reduce((s, x) => s + x.total, 0);
+  const profit = filtered.reduce((s, x) => s + x.profit, 0);
+  const pieces = filtered.reduce((s, x) => s + x.pieces, 0);
+
+  let html = `
+    <div class="stats-grid">
+      <div class="stat-tile"><div class="stat-label">Revenu</div><div class="stat-value">${fmt(revenue)}</div></div>
+      <div class="stat-tile"><div class="stat-label">Bénéfice</div><div class="stat-value profit">${fmt(profit)}</div></div>
+      <div class="stat-tile"><div class="stat-label">Ventes</div><div class="stat-value">${filtered.length}</div></div>
+      <div class="stat-tile"><div class="stat-label">Pièces</div><div class="stat-value">${pieces}</div></div>
+    </div>`;
+
+  // Insights
+  const insights = computeInsights(filtered);
+  if (insights.length) {
+    html += `<div class="sales-section"><h3>Analyse</h3>` +
+      insights.map(i => `<div class="insight ${i.warn ? 'warn' : ''}"><span class="tag">${i.tag}</span><span>${i.text}</span></div>`).join('') +
+      `</div>`;
+  }
+
+  // 7-day revenue chart
+  const days = [];
+  for (let i = 6; i >= 0; i--) {
+    const d0 = startOfDay(Date.now()) - i * 86400000;
+    const d1 = d0 + 86400000;
+    const rev = salesLog.filter(s => s.ts >= d0 && s.ts < d1).reduce((s, x) => s + x.total, 0);
+    days.push({ d0, rev, isToday: i === 0 });
+  }
+  const maxRev = Math.max(...days.map(d => d.rev), 1);
+  html += `<div class="sales-section"><h3>Revenu — 7 derniers jours</h3><div class="day-chart">` +
+    days.map(d => {
+      const h = Math.round(70 * d.rev / maxRev);
+      const lbl = new Date(d.d0).toLocaleDateString('fr-MA', { weekday: 'short' });
+      return `<div class="day-col">
+        ${d.rev > 0 ? `<span class="day-val">${Math.round(d.rev)}</span>` : ''}
+        <div class="day-bar ${d.isToday ? 'today' : ''}" style="height:${Math.max(h, d.rev > 0 ? 4 : 2)}px"></div>
+        <span class="day-lbl">${lbl}</span>
+      </div>`;
+    }).join('') + `</div></div>`;
+
+  // Best sellers
+  const ranking = aggregateByProduct(filtered).sort((a, b) => b.revenue - a.revenue).slice(0, 5);
+  if (ranking.length) {
+    const maxR = ranking[0].revenue || 1;
+    html += `<div class="sales-section"><h3>Meilleures ventes</h3>` +
+      ranking.map(r => `
+        <div class="bar-row">
+          <div class="ci-avatar" style="background:${r.product.color}">${initials(r.product.name)}</div>
+          <div class="bar-info">
+            <div class="bar-top">
+              <span class="bar-name">${r.product.name}</span>
+              <span class="bar-val">${fmt(r.revenue)}</span>
+            </div>
+            <div class="bar-sub">${r.qty} pcs · bénéfice ${fmt(r.profit)}</div>
+            <div class="bar-track"><div class="bar-fill" style="width:${Math.round(100 * r.revenue / maxR)}%"></div></div>
+          </div>
+        </div>`).join('') + `</div>`;
+  }
+
+  // Recent sales
+  const recent = filtered.slice(-10).reverse();
+  html += `<div class="sales-section"><h3>Dernières ventes</h3>` +
+    (recent.length === 0
+      ? `<div class="empty-msg">Aucune vente sur cette période</div>`
+      : recent.map(s => {
+          const d = new Date(s.ts);
+          const isToday = startOfDay(s.ts) === startOfDay(Date.now());
+          const when = (isToday ? '' : d.toLocaleDateString('fr-MA', { day: '2-digit', month: '2-digit' }) + ' ') +
+            d.toLocaleTimeString('fr-MA', { hour: '2-digit', minute: '2-digit' });
+          const summary = s.items.map(it => `${it.qty} ${it.name}`).join(', ');
+          return `<div class="sale-row">
+            <div>
+              <div class="sr-ref">#${String(s.ref).padStart(4, '0')} · ${when}</div>
+              <div class="sr-detail">${summary}</div>
+            </div>
+            <div class="sr-amounts">
+              <div class="sr-total">${fmt(s.total)}</div>
+              <div class="sr-profit">+${fmt(s.profit)}</div>
+            </div>
+          </div>`;
+        }).join('')) + `</div>`;
+
+  el.innerHTML = html;
+}
+
+function clearSales() {
+  if (!confirm('Effacer tout l\'historique des ventes ?')) return;
+  salesLog = [];
+  saveSales();
+  renderSales();
+}
+
 // Swipe down to close panels
-[['cartDrawer', closeCart], ['stockPanel', closeStock]].forEach(([id, closeFn]) => {
+[['cartDrawer', closeCart], ['stockPanel', closeStock], ['salesPanel', closeSales]].forEach(([id, closeFn]) => {
   let startY = 0;
   const el = document.getElementById(id);
   el.addEventListener('touchstart', e => { startY = e.touches[0].clientY; }, { passive: true });
