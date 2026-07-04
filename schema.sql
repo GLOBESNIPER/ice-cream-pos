@@ -1,5 +1,6 @@
 -- Maalem POS — Supabase schema
 -- Paste this whole file in the Supabase SQL editor and click Run.
+-- Safe to run multiple times.
 
 create table if not exists products (
   id bigint primary key,
@@ -22,6 +23,10 @@ create table if not exists sales (
   pieces int not null,
   items jsonb not null
 );
+
+-- in case an older version of this schema was run before
+alter table sales add column if not exists device text;
+drop function if exists record_sale(int, numeric, numeric, int, jsonb);
 
 -- Atomic sale: inserts the sale and decrements stock in one transaction
 create or replace function record_sale(
@@ -53,6 +58,8 @@ begin
 end;
 $$;
 
+grant execute on function record_sale(int, text, numeric, numeric, int, jsonb) to anon, authenticated;
+
 -- Open access for the app (UI access is PIN-protected; the anon key is public by design)
 alter table products enable row level security;
 alter table sales enable row level security;
@@ -63,6 +70,15 @@ create policy "app products" on products for all using (true) with check (true);
 drop policy if exists "app sales" on sales;
 create policy "app sales" on sales for all using (true) with check (true);
 
--- Realtime: push changes to all connected phones
-alter publication supabase_realtime add table products;
-alter publication supabase_realtime add table sales;
+grant usage on schema public to anon, authenticated;
+grant all on products, sales to anon, authenticated;
+grant usage, select on sequence sales_id_seq to anon, authenticated;
+
+-- Realtime: push changes to all connected phones (ignore "already added" errors)
+do $$ begin
+  alter publication supabase_realtime add table products;
+exception when duplicate_object then null; end $$;
+
+do $$ begin
+  alter publication supabase_realtime add table sales;
+exception when duplicate_object then null; end $$;

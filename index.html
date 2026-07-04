@@ -55,6 +55,7 @@
   .header-title .page  { font-size: 18px; font-weight: 700; }
 
   .sync-chip {
+    cursor: pointer;
     display: inline-block;
     font-size: 10px;
     font-weight: 700;
@@ -718,7 +719,7 @@
 <header>
   <div class="header-title">
     <span class="brand">Maalem</span>
-    <span class="page">Caisse <span class="sync-chip" id="syncChip">Local</span></span>
+    <span class="page">Caisse <span class="sync-chip" id="syncChip" onclick="syncDiag(event)">Local</span></span>
   </div>
   <div class="header-actions">
     <button class="hdr-btn" onclick="openSales()">Ventes</button>
@@ -1089,6 +1090,41 @@ async function flushPending() {
     }
   }
   setSyncChip();
+}
+
+/* Tap the sync chip to see exactly what is failing */
+async function syncDiag(ev) {
+  if (ev) ev.stopPropagation();
+  if (!window.supabase) { alert('Diagnostic:\n\nLa librairie Supabase ne charge pas (connexion internet ?)'); return; }
+  if (!db) { alert('Diagnostic:\n\nMode local — configuration Supabase absente'); return; }
+  const msg = [];
+
+  try {
+    const { data, error } = await db.from('products').select('id');
+    if (error) msg.push('Table products: ERREUR — ' + (error.message || error.code));
+    else msg.push('Table products: OK (' + data.length + ' produits)');
+  } catch (e) { msg.push('Table products: ERREUR réseau — ' + (e.message || e)); }
+
+  try {
+    const { data, error } = await db.from('sales').select('id').limit(1);
+    if (error) msg.push('Table sales: ERREUR — ' + (error.message || error.code));
+    else msg.push('Table sales: OK');
+  } catch (e) { msg.push('Table sales: ERREUR réseau — ' + (e.message || e)); }
+
+  try {
+    const { error } = await db.rpc('record_sale', {
+      p_client_ref: 0, p_device: 'diagnostic', p_total: 0,
+      p_profit: 0, p_pieces: 0, p_items: []
+    });
+    if (error) msg.push('Fonction record_sale: ERREUR — ' + (error.message || error.code));
+    else {
+      msg.push('Fonction record_sale: OK');
+      await db.from('sales').delete().eq('device', 'diagnostic');
+    }
+  } catch (e) { msg.push('Fonction record_sale: ERREUR — ' + (e.message || e)); }
+
+  alert('Diagnostic sync:\n\n' + msg.join('\n\n'));
+  refreshRemote();
 }
 
 async function pushStockRemote(id, value) {
