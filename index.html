@@ -743,6 +743,71 @@
 
   .empty-msg { text-align: center; color: var(--text-muted); font-size: 13px; padding: 20px 0; }
 
+  /* Login screen */
+  .login-screen {
+    position: fixed;
+    inset: 0;
+    background: linear-gradient(180deg, var(--purple-dark) 0%, var(--bg) 45%);
+    z-index: 350;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 24px;
+    transition: opacity .3s;
+  }
+  .login-screen.hidden { opacity: 0; pointer-events: none; }
+  .login-brand {
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: .25em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+  .login-title {
+    font-size: 22px;
+    font-weight: 800;
+    margin-bottom: 24px;
+  }
+  .login-users {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    width: min(320px, 100%);
+  }
+  .login-user {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    background: var(--card);
+    border: 1.5px solid rgba(167,139,250,.2);
+    border-radius: 18px;
+    padding: 14px 18px;
+    color: var(--text);
+    font-size: 17px;
+    font-weight: 700;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: transform .1s, border-color .15s;
+  }
+  .login-user:active { transform: scale(.97); border-color: var(--purple-light); }
+  .login-avatar {
+    width: 44px; height: 44px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    font-weight: 800;
+    color: white;
+  }
+  .login-hint {
+    margin-top: 22px;
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+
   /* PIN modal */
   .pin-overlay {
     position: fixed;
@@ -943,6 +1008,27 @@
     <button class="tab-btn" data-period="all" onclick="setPeriod('all')">Tout</button>
   </div>
   <div class="stock-list" id="salesContent"></div>
+</div>
+
+<!-- Login screen: choose the seller before using the register -->
+<div class="login-screen" id="loginScreen">
+  <div class="login-brand">Maalem</div>
+  <div class="login-title">Qui vend aujourd'hui ?</div>
+  <div class="login-users">
+    <button class="login-user" onclick="loginAs('Oussama')">
+      <span class="login-avatar" style="background:#8b5cf6">O</span>
+      <span>Oussama</span>
+    </button>
+    <button class="login-user" onclick="loginAs('Ilyas')">
+      <span class="login-avatar" style="background:#ec4899">I</span>
+      <span>Ilyas</span>
+    </button>
+    <button class="login-user" onclick="loginAs('Autre')">
+      <span class="login-avatar" style="background:#64748b">A</span>
+      <span>Autre</span>
+    </button>
+  </div>
+  <div class="login-hint">Chaque vendeur a son propre code PIN</div>
 </div>
 
 <!-- Journal du jour (salesperson, no PIN) -->
@@ -1555,11 +1641,18 @@ let pinEntry = '';
 
 function expectedPin(target) {
   if (target === 'reset-sales') return PIN_RESET;
-  if (target.startsWith('vendor:')) {
-    const v = VENDORS.find(x => x.name === target.slice(7));
+  if (target.startsWith('vendor:') || target.startsWith('login:')) {
+    const name = target.slice(target.indexOf(':') + 1);
+    const v = VENDORS.find(x => x.name === name);
     return v ? v.pin : PIN_CODE;
   }
   return PIN_CODE;
+}
+
+/* Login screen */
+function loginAs(name) { requirePin('login:' + name); }
+function hideLogin() {
+  document.getElementById('loginScreen').classList.add('hidden');
 }
 
 function requirePin(target) {
@@ -1572,7 +1665,8 @@ function requirePin(target) {
   document.getElementById('pinSub').textContent =
     target === 'stock' ? 'Accès au stock' :
     target === 'reset-sales' ? 'Code pour effacer les ventes' :
-    target.startsWith('vendor:') ? 'Code de ' + target.slice(7) :
+    target.startsWith('vendor:') || target.startsWith('login:')
+      ? 'Code de ' + target.slice(target.indexOf(':') + 1) :
     'Accès aux ventes';
   document.getElementById('pinOverlay').classList.add('open');
 }
@@ -1580,6 +1674,7 @@ function openProtected(t) {
   if (t === 'stock') doOpenStock();
   else if (t === 'reset-sales') doClearSales();
   else if (t.startsWith('vendor:')) doSetVendor(t.slice(7));
+  else if (t.startsWith('login:')) { doSetVendor(t.slice(6)); hideLogin(); }
   else doOpenSales();
 }
 function pinKey(d) {
