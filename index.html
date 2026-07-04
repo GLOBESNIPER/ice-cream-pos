@@ -1013,8 +1013,11 @@ function applyRemoteProducts(rows) {
   saveStock();
 }
 
+let pushInFlight = 0;
+
 async function pushSaleRemote(sale) {
   if (!db) return;
+  pushInFlight++;
   try {
     const { error } = await db.rpc('record_sale', {
       p_client_ref: sale.ref, p_device: DEVICE_ID, p_total: sale.total,
@@ -1026,6 +1029,43 @@ async function pushSaleRemote(sale) {
     dbOnline = false;
     pendingSales.push(sale);
     savePending();
+  } finally {
+    pushInFlight--;
+  }
+  setSyncChip();
+}
+
+/* Poll the database so devices stay in sync even when realtime
+   websockets are blocked by the network */
+async function refreshRemote() {
+  if (!db || document.hidden || pushInFlight > 0) return;
+  try {
+    const { data: rows, error } = await db.from('products').select('*').order('id');
+    if (error) throw error;
+    if (rows && rows.length) {
+      applyRemoteProducts(rows);
+      renderProducts(document.querySelector('.search-input').value);
+      if (document.getElementById('stockPanel').classList.contains('open')) renderStock();
+    }
+
+    const { data: saleRows, error: e2 } = await db.from('sales')
+      .select('*').order('id', { ascending: false }).limit(1000);
+    if (e2) throw e2;
+    const dbSales = (saleRows || []).reverse().map(r => ({
+      ref: r.client_ref ?? r.id,
+      ts: Date.parse(r.created_at),
+      total: Number(r.total), profit: Number(r.profit),
+      pieces: r.pieces, items: r.items
+    }));
+    // keep offline sales that have not reached the database yet
+    salesLog = dbSales.concat(pendingSales);
+    saveSales();
+    if (document.getElementById('salesPanel').classList.contains('open')) renderSales();
+
+    dbOnline = true;
+    if (pendingSales.length) flushPending();
+  } catch (e) {
+    dbOnline = false;
   }
   setSyncChip();
 }
@@ -1607,11 +1647,12 @@ updateUI();
 setSyncChip();
 initRemote();
 
-// retry pending sales regularly and when the app comes back to the foreground
-setInterval(flushPending, 30000);
+// keep devices in sync: poll every 10s and refresh when the app returns to the foreground
+setInterval(refreshRemote, 10000);
 document.addEventListener('visibilitychange', () => {
-  if (!document.hidden) flushPending();
+  if (!document.hidden) { refreshRemote(); }
 });
+window.addEventListener('online', refreshRemote);
 </script>
 </body>
 </html>
