@@ -812,10 +812,6 @@
       <span class="totals-label">Pièces</span>
       <span class="totals-value" id="totalPieces">0</span>
     </div>
-    <div class="totals-row">
-      <span class="totals-label">Bénéfice</span>
-      <span class="totals-value profit" id="totalProfit">0 DH</span>
-    </div>
     <div class="totals-row totals-total">
       <span class="totals-label">Total</span>
       <span class="totals-value" id="totalAmount">0 DH</span>
@@ -841,7 +837,6 @@
       <div id="receiptLines"></div>
       <div class="receipt-footer">
         <div class="rf-row"><span>Pièces</span><span id="rPieces"></span></div>
-        <div class="rf-row"><span>Bénéfice</span><span class="profit-val" id="rProfit"></span></div>
         <div class="rf-total">
           <span>Total</span>
           <span id="rTotal"></span>
@@ -1303,7 +1298,6 @@ function updateUI() {
   document.getElementById('fbTotal').textContent = fmt(total);
 
   document.getElementById('totalPieces').textContent = pieces;
-  document.getElementById('totalProfit').textContent = '+' + fmt(getProfit());
   document.getElementById('totalAmount').textContent = fmt(total);
   document.getElementById('checkoutBtn').disabled = pieces === 0;
 
@@ -1425,7 +1419,6 @@ function checkout() {
   `).join('');
 
   document.getElementById('rPieces').textContent = getTotalPieces() + ' pcs';
-  document.getElementById('rProfit').textContent = '+' + fmt(getProfit());
   document.getElementById('rTotal').textContent = fmt(getTotal());
 
   closeCart();
