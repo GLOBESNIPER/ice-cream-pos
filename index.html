@@ -928,8 +928,8 @@ let PRODUCTS = [
   { id: 7, name: 'Yosse',      cost: 4.17,  price: 10, perCarton: 24, initialStock: 72,  color: '#f43f5e' },
   { id: 8, name: 'Solero',     cost: 12.00, price: 20, perCarton: 25, initialStock: 50,  color: '#f97316' },
   { id: 9, name: 'Magnum',     cost: 17.50, price: 23, perCarton: 20, initialStock: 80,  color: '#a16207' },
-  { id: 10, name: 'Slushy 5',  cost: 2.00,  price: 5,  perCarton: 1,  initialStock: 100, color: '#0ea5e9' },
-  { id: 11, name: 'Slushy 10', cost: 4.00,  price: 10, perCarton: 1,  initialStock: 100, color: '#2563eb' },
+  { id: 10, name: 'Slushy 5',  cost: 0,     price: 5,  perCarton: 1,  initialStock: 100, color: '#0ea5e9' },
+  { id: 11, name: 'Slushy 10', cost: 0,     price: 10, perCarton: 1,  initialStock: 100, color: '#2563eb' },
 ];
 const DEFAULT_PRODUCTS = PRODUCTS.slice();
 
@@ -1012,6 +1012,17 @@ async function initRemote() {
       if (missing.length) {
         const { error: addErr } = await db.from('products').insert(missing);
         if (!addErr) rows = rows.concat(missing);
+      }
+      // push corrected prices/costs/names from the built-in list (stock stays DB-owned)
+      for (const d of DEFAULT_PRODUCTS) {
+        const r = rows.find(x => x.id === d.id);
+        if (!r) continue;
+        if (Number(r.cost) !== d.cost || Number(r.price) !== d.price ||
+            r.name !== d.name || r.per_carton !== d.perCarton || r.color !== d.color) {
+          const fix = { cost: d.cost, price: d.price, name: d.name, per_carton: d.perCarton, color: d.color };
+          const { error: updErr } = await db.from('products').update(fix).eq('id', d.id);
+          if (!updErr) Object.assign(r, fix);
+        }
       }
     }
 
