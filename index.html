@@ -1314,9 +1314,9 @@ function stockLabel(q) {
 function updateTodayBar() {
   const t0 = startOfDay(Date.now());
   const today = salesLog.filter(s => s.ts >= t0);
-  const rev = today.reduce((s, x) => s + x.total, 0);
+  const pieces = today.reduce((s, x) => s + x.pieces, 0);
   document.getElementById('todayTotal').textContent =
-    fmt(rev) + ' · ' + today.length + ' vente' + (today.length > 1 ? 's' : '');
+    today.length + ' vente' + (today.length > 1 ? 's' : '') + ' · ' + pieces + ' pcs';
 }
 
 function updateUI() {
