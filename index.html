@@ -102,6 +102,29 @@
   }
   .cart-badge.show { display: flex; }
 
+  /* Today total strip */
+  .today-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: var(--surface2);
+    margin: 12px 16px 0;
+    padding: 10px 16px;
+    border-radius: 14px;
+    border: 1px solid rgba(167,139,250,.15);
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .today-bar:active { background: var(--card); }
+  .tb-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: .06em;
+  }
+  .tb-value { font-size: 15px; font-weight: 800; color: var(--purple-light); }
+
   /* Search */
   .search-wrap { padding: 12px 16px 0; }
   .search-input {
@@ -780,6 +803,11 @@
   </div>
 </header>
 
+<div class="today-bar" onclick="openSales()">
+  <span class="tb-label">Ventes aujourd'hui</span>
+  <span class="tb-value" id="todayTotal">0 DH · 0 ventes</span>
+</div>
+
 <div class="search-wrap">
   <input class="search-input" type="search" placeholder="Rechercher un produit"
     oninput="renderProducts(this.value)" autocomplete="off" autocorrect="off">
@@ -1283,10 +1311,19 @@ function stockLabel(q) {
   return 'Stock: ' + q + ' pcs';
 }
 
+function updateTodayBar() {
+  const t0 = startOfDay(Date.now());
+  const today = salesLog.filter(s => s.ts >= t0);
+  const rev = today.reduce((s, x) => s + x.total, 0);
+  document.getElementById('todayTotal').textContent =
+    fmt(rev) + ' · ' + today.length + ' vente' + (today.length > 1 ? 's' : '');
+}
+
 function updateUI() {
   const total = getTotal();
   const pieces = getTotalPieces();
   const itemCount = Object.keys(cart).length;
+  updateTodayBar();
 
   const badge = document.getElementById('cartBadge');
   badge.textContent = itemCount;
