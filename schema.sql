@@ -82,3 +82,6 @@ exception when duplicate_object then null; end $$;
 do $$ begin
   alter publication supabase_realtime add table sales;
 exception when duplicate_object then null; end $$;
+
+-- make the API pick up the new function immediately
+notify pgrst, 'reload schema';
