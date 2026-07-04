@@ -1,31 +1,32 @@
-# 🍦 Ice Cream POS — Maalem Glaces
+# Ice Cream POS — Maalem
 
-Mobile-first point-of-sale web app for ice cream wholesale (prices per carton in DH).
+Mobile-first point-of-sale web app. Sells per piece, tracks inventory and profit.
 
 ## Products
 
-| Product | Price/Carton (DH) |
-|---|---|
-| Platsch | 106 |
-| Scooby Doo | 100 |
-| Cornion | 100 |
-| Bay Bino | 120 |
-| Leone | 250 |
-| Classico | 264 |
-| Yosse | 100 |
-| Solero | 300 |
-| Magnum | 350 |
+| Product | Cost/pc | Sell/pc | Profit/pc | Pcs/carton | Starting stock |
+|---|---|---|---|---|---|
+| Platsch | 3.31 DH | 6 DH | 2.69 DH | 32 | 96 |
+| Scooby Doo | 2.50 DH | 6 DH | 3.50 DH | 40 | 80 |
+| Cornion | 2.50 DH | 5 DH | 2.50 DH | 40 | 120 |
+| Bay Bino | 5.00 DH | 10 DH | 5.00 DH | 24 | 48 |
+| Leone | 10.00 DH | 15 DH | 5.00 DH | 25 | 75 |
+| Classico | 12.00 DH | 17 DH | 5.00 DH | 22 | 22 |
+| Yosse | 4.17 DH | 10 DH | 5.83 DH | 24 | 72 |
+| Solero | 12.00 DH | 20 DH | 8.00 DH | 25 | 50 |
+| Magnum | 17.50 DH | 23 DH | 5.50 DH | 20 | 80 |
 
 ## Features
 
-- Tap-to-add product grid with live quantity badges
-- Product search
-- Floating cart bar with running total
-- Cart drawer with +/− quantity controls
-- Checkout with numbered receipt
-- Works fully offline — pure HTML/CSS/JS, no dependencies
-- Installable as a phone web app (add to home screen)
+- Per-piece sales with tap-to-add product grid and search
+- Live inventory: stock shown on each card, decremented on every sale, blocks overselling
+- Low-stock and out-of-stock indicators
+- Stock panel: edit quantities, see stock value and carton equivalents
+- Profit shown per sale (cart, receipt)
+- Numbered receipts
+- Data persists on the device (localStorage) — works offline
+- Installable as a phone app (add to home screen)
 
 ## Deploy
 
-Push to main — Vercel auto-deploys. Or import the repo at [vercel.com/new](https://vercel.com/new).
+Import the repo at [vercel.com/new](https://vercel.com/new) — no build config needed. Pushes to `main` auto-deploy once connected.
