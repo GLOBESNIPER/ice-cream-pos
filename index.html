@@ -1412,30 +1412,37 @@ function newOrder() {
 }
 
 /* PIN gate */
-const PIN_CODE = '9421';
+const PIN_CODE = '9421';        // access to Stock and Ventes
+const PIN_RESET = '1234';       // required to erase the sales history
 let pinUnlocked = false;
 let pinTarget = null;
 let pinEntry = '';
 
 function requirePin(target) {
-  if (pinUnlocked) { openProtected(target); return; }
+  // the reset code is asked every time; access unlock lasts for the session
+  if (pinUnlocked && target !== 'reset-sales') { openProtected(target); return; }
   pinTarget = target;
   pinEntry = '';
   renderPinDots();
   document.getElementById('pinSub').textContent =
-    target === 'stock' ? 'Accès au stock' : 'Accès aux ventes';
+    target === 'stock' ? 'Accès au stock' :
+    target === 'reset-sales' ? 'Code pour effacer les ventes' :
+    'Accès aux ventes';
   document.getElementById('pinOverlay').classList.add('open');
 }
 function openProtected(t) {
-  t === 'stock' ? doOpenStock() : doOpenSales();
+  if (t === 'stock') doOpenStock();
+  else if (t === 'reset-sales') doClearSales();
+  else doOpenSales();
 }
 function pinKey(d) {
   if (pinEntry.length >= 4) return;
   pinEntry += d;
   renderPinDots();
   if (pinEntry.length === 4) {
-    if (pinEntry === PIN_CODE) {
-      pinUnlocked = true;
+    const expected = pinTarget === 'reset-sales' ? PIN_RESET : PIN_CODE;
+    if (pinEntry === expected) {
+      if (pinTarget !== 'reset-sales') pinUnlocked = true;
       closePin();
       openProtected(pinTarget);
       if (navigator.vibrate) navigator.vibrate(30);
@@ -1741,8 +1748,11 @@ function renderSales() {
   }
 }
 
-async function clearSales() {
-  if (!confirm('Effacer tout l\'historique des ventes ?')) return;
+function clearSales() {
+  requirePin('reset-sales');
+}
+
+async function doClearSales() {
   salesLog = [];
   pendingSales = [];
   saveSales();
