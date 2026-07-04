@@ -1095,10 +1095,14 @@ const LOW_STOCK = 15;
 
 /* Sellers — each has a personal PIN to switch to their name */
 const VENDORS = [
-  { name: 'Oussama', pin: '1111' },
-  { name: 'Ilyas',   pin: '2222' },
-  { name: 'Autre',   pin: '3333' },
+  { name: 'Oussama', pin: '1111', color: '#8b5cf6' },
+  { name: 'Ilyas',   pin: '2222', color: '#ec4899' },
+  { name: 'Autre',   pin: '3333', color: '#64748b' },
 ];
+function vendorColor(name) {
+  const v = VENDORS.find(x => x.name === name);
+  return v ? v.color : '#64748b';
+}
 const VENDOR_NAMES = VENDORS.map(v => v.name);
 let currentVendor = localStorage.getItem('maalem_vendor') || VENDOR_NAMES[0];
 if (!VENDOR_NAMES.includes(currentVendor)) currentVendor = VENDOR_NAMES[0];
@@ -1976,6 +1980,35 @@ function renderSales() {
       <div class="stat-tile"><div class="stat-label">Revenu glaces</div><div class="stat-value">${fmt(revGlaces)}</div></div>
       <div class="stat-tile"><div class="stat-label">Revenu slushy</div><div class="stat-value">${fmt(revSlush)}</div></div>
     </div>`;
+
+  // Per-seller totals for the selected period
+  const perVendor = {};
+  filtered.forEach(s => {
+    const v = s.vendor || 'Autre';
+    perVendor[v] = perVendor[v] || { n: 0, rev: 0, profit: 0, pieces: 0 };
+    perVendor[v].n++;
+    perVendor[v].rev += s.total;
+    perVendor[v].profit += s.profit;
+    perVendor[v].pieces += s.pieces;
+  });
+  const vNames = VENDOR_NAMES.concat(Object.keys(perVendor).filter(v => !VENDOR_NAMES.includes(v)));
+  const maxVRev = Math.max(...vNames.map(v => (perVendor[v] || { rev: 0 }).rev), 1);
+  html += `<div class="sales-section"><h3>Par vendeur</h3>` +
+    vNames.map(v => {
+      const d = perVendor[v] || { n: 0, rev: 0, profit: 0, pieces: 0 };
+      return `
+        <div class="bar-row">
+          <div class="ci-avatar" style="background:${vendorColor(v)}">${initials(v)}</div>
+          <div class="bar-info">
+            <div class="bar-top">
+              <span class="bar-name">${v}</span>
+              <span class="bar-val">${fmt(d.rev)}</span>
+            </div>
+            <div class="bar-sub">${d.n} vente${d.n > 1 ? 's' : ''} · ${d.pieces} pcs · bénéfice ${fmt(d.profit)}</div>
+            <div class="bar-track"><div class="bar-fill" style="width:${Math.round(100 * d.rev / maxVRev)}%"></div></div>
+          </div>
+        </div>`;
+    }).join('') + `</div>`;
 
   // Insights
   const insights = computeInsights(filtered);
