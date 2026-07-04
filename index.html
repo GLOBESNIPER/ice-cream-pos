@@ -542,6 +542,8 @@
     padding: 12px 20px 4px;
     display: flex;
     justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 4px 12px;
     font-size: 13px;
     color: var(--text-muted);
     border-top: 1px solid rgba(255,255,255,.08);
@@ -863,7 +865,8 @@
   </div>
   <div class="stock-list" id="stockList"></div>
   <div class="stock-summary">
-    <span>Valeur (vente): <b id="stockValue">0 DH</b></span>
+    <span>Glaces: <b id="stockValue">0 DH</b></span>
+    <span>Slushy: <b id="stockValueSlush">0 DH</b></span>
     <span>Total: <b id="stockPieces">0 pcs</b></span>
   </div>
 </div>
@@ -928,8 +931,8 @@ let PRODUCTS = [
   { id: 7, name: 'Yosse',      cost: 4.17,  price: 10, perCarton: 24, initialStock: 72,  color: '#f43f5e' },
   { id: 8, name: 'Solero',     cost: 12.00, price: 20, perCarton: 25, initialStock: 50,  color: '#f97316' },
   { id: 9, name: 'Magnum',     cost: 17.50, price: 23, perCarton: 20, initialStock: 80,  color: '#a16207' },
-  { id: 10, name: 'Slushy 5',  cost: 0,     price: 5,  perCarton: 1,  initialStock: 100, color: '#0ea5e9' },
-  { id: 11, name: 'Slushy 10', cost: 0,     price: 10, perCarton: 1,  initialStock: 100, color: '#2563eb' },
+  { id: 10, name: 'Slushy 5',  cost: 0,     price: 5,  perCarton: 1,  initialStock: 100, color: '#0ea5e9', slush: true },
+  { id: 11, name: 'Slushy 10', cost: 0,     price: 10, perCarton: 1,  initialStock: 100, color: '#2563eb', slush: true },
 ];
 const DEFAULT_PRODUCTS = PRODUCTS.slice();
 
@@ -1076,7 +1079,8 @@ async function initRemote() {
 function applyRemoteProducts(rows) {
   PRODUCTS = rows.map(r => ({
     id: r.id, name: r.name, cost: Number(r.cost), price: Number(r.price),
-    perCarton: r.per_carton, initialStock: r.initial_stock, color: r.color
+    perCarton: r.per_carton, initialStock: r.initial_stock, color: r.color,
+    slush: !!(DEFAULT_PRODUCTS.find(d => d.id === r.id) || {}).slush
   }));
   const s = {};
   rows.forEach(r => s[r.id] = r.stock);
@@ -1531,9 +1535,13 @@ function renderStock() {
 }
 
 function updateStockSummary() {
-  const value = PRODUCTS.reduce((sum, p) => sum + (stock[p.id] || 0) * p.price, 0);
+  const glaces = PRODUCTS.filter(p => !p.slush)
+    .reduce((sum, p) => sum + (stock[p.id] || 0) * p.price, 0);
+  const slush = PRODUCTS.filter(p => p.slush)
+    .reduce((sum, p) => sum + (stock[p.id] || 0) * p.price, 0);
   const pieces = PRODUCTS.reduce((sum, p) => sum + (stock[p.id] || 0), 0);
-  document.getElementById('stockValue').textContent = fmt(value);
+  document.getElementById('stockValue').textContent = fmt(glaces);
+  document.getElementById('stockValueSlush').textContent = fmt(slush);
   document.getElementById('stockPieces').textContent = pieces + ' pcs';
 }
 
@@ -1669,6 +1677,14 @@ function renderSales() {
   const profit = filtered.reduce((s, x) => s + x.profit, 0);
   const pieces = filtered.reduce((s, x) => s + x.pieces, 0);
 
+  // glaces vs slushy split
+  let revGlaces = 0, revSlush = 0;
+  filtered.forEach(s => s.items.forEach(it => {
+    const d = DEFAULT_PRODUCTS.find(x => x.id === it.id);
+    if (d && d.slush) revSlush += it.qty * it.price;
+    else revGlaces += it.qty * it.price;
+  }));
+
   const selDay = (typeof salesPeriod === 'object' && salesPeriod.day) ? salesPeriod.day : null;
 
   let html = '';
@@ -1684,6 +1700,8 @@ function renderSales() {
       <div class="stat-tile"><div class="stat-label">Bénéfice</div><div class="stat-value profit">${fmt(profit)}</div></div>
       <div class="stat-tile"><div class="stat-label">Ventes</div><div class="stat-value">${filtered.length}</div></div>
       <div class="stat-tile"><div class="stat-label">Pièces</div><div class="stat-value">${pieces}</div></div>
+      <div class="stat-tile"><div class="stat-label">Revenu glaces</div><div class="stat-value">${fmt(revGlaces)}</div></div>
+      <div class="stat-tile"><div class="stat-label">Revenu slushy</div><div class="stat-value">${fmt(revSlush)}</div></div>
     </div>`;
 
   // Insights
