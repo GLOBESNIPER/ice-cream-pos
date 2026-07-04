@@ -597,12 +597,58 @@
   .bar-track { height: 8px; background: var(--surface2); border-radius: 4px; overflow: hidden; margin-top: 4px; }
   .bar-fill { height: 100%; background: var(--purple-light); border-radius: 4px; }
 
-  .day-chart { display: flex; align-items: flex-end; gap: 6px; height: 100px; }
-  .day-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; height: 100%; justify-content: flex-end; }
+  .day-chart {
+    display: flex;
+    align-items: flex-end;
+    gap: 6px;
+    height: 116px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+    -webkit-overflow-scrolling: touch;
+  }
+  .day-col {
+    flex: none;
+    width: 44px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    height: 100%;
+    justify-content: flex-end;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    border-radius: 8px;
+    padding: 4px 2px 2px;
+  }
+  .day-col.selected { background: rgba(139,92,246,.18); }
+  .day-col.selected .day-bar { background: white; }
   .day-bar { width: 100%; background: var(--purple-light); border-radius: 4px 4px 0 0; min-height: 2px; }
   .day-bar.today { background: var(--pink); }
-  .day-lbl { font-size: 10px; color: var(--text-muted); }
+  .day-lbl { font-size: 10px; color: var(--text-muted); white-space: nowrap; }
+  .day-date { font-size: 9px; color: var(--text-muted); }
+  .day-col.selected .day-lbl, .day-col.selected .day-date { color: var(--text); font-weight: 700; }
   .day-val { font-size: 10px; color: var(--text); font-weight: 700; }
+
+  .sel-day-label {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--purple-light);
+    margin-bottom: 10px;
+    background: rgba(139,92,246,.12);
+    border-radius: 10px;
+    padding: 8px 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .sel-day-label button {
+    background: none;
+    border: none;
+    color: var(--pink);
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+  }
 
   .insight {
     display: flex;
@@ -1495,6 +1541,17 @@ function setPeriod(p) {
   renderSales();
 }
 
+function setDay(d0) {
+  // tapping the already-selected day goes back to today's view
+  if (typeof salesPeriod === 'object' && salesPeriod.day === d0) {
+    setPeriod('today');
+    return;
+  }
+  salesPeriod = { day: d0 };
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  renderSales();
+}
+
 function startOfDay(ts) {
   const d = new Date(ts);
   d.setHours(0, 0, 0, 0);
@@ -1502,6 +1559,9 @@ function startOfDay(ts) {
 }
 
 function filterSales() {
+  if (typeof salesPeriod === 'object' && salesPeriod.day) {
+    return salesLog.filter(s => s.ts >= salesPeriod.day && s.ts < salesPeriod.day + 86400000);
+  }
   if (salesPeriod === 'today') {
     const t0 = startOfDay(Date.now());
     return salesLog.filter(s => s.ts >= t0);
@@ -1574,7 +1634,16 @@ function renderSales() {
   const profit = filtered.reduce((s, x) => s + x.profit, 0);
   const pieces = filtered.reduce((s, x) => s + x.pieces, 0);
 
-  let html = `
+  const selDay = (typeof salesPeriod === 'object' && salesPeriod.day) ? salesPeriod.day : null;
+
+  let html = '';
+  if (selDay) {
+    const d = new Date(selDay);
+    const lbl = d.toLocaleDateString('fr-MA', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' });
+    html += `<div class="sel-day-label"><span>Journée du ${lbl}</span><button onclick="setPeriod('today')">Retour</button></div>`;
+  }
+
+  html += `
     <div class="stats-grid">
       <div class="stat-tile"><div class="stat-label">Revenu</div><div class="stat-value">${fmt(revenue)}</div></div>
       <div class="stat-tile"><div class="stat-label">Bénéfice</div><div class="stat-value profit">${fmt(profit)}</div></div>
@@ -1590,23 +1659,26 @@ function renderSales() {
       `</div>`;
   }
 
-  // 7-day revenue chart
+  // daily revenue chart — last 30 days, scrollable, tap a day to filter
   const days = [];
-  for (let i = 6; i >= 0; i--) {
+  for (let i = 29; i >= 0; i--) {
     const d0 = startOfDay(Date.now()) - i * 86400000;
     const d1 = d0 + 86400000;
     const rev = salesLog.filter(s => s.ts >= d0 && s.ts < d1).reduce((s, x) => s + x.total, 0);
     days.push({ d0, rev, isToday: i === 0 });
   }
   const maxRev = Math.max(...days.map(d => d.rev), 1);
-  html += `<div class="sales-section"><h3>Revenu — 7 derniers jours</h3><div class="day-chart">` +
+  html += `<div class="sales-section"><h3>Revenu par jour — touchez un jour</h3><div class="day-chart" id="dayChart">` +
     days.map(d => {
-      const h = Math.round(70 * d.rev / maxRev);
-      const lbl = new Date(d.d0).toLocaleDateString('fr-MA', { weekday: 'short' });
-      return `<div class="day-col">
+      const h = Math.round(60 * d.rev / maxRev);
+      const dt = new Date(d.d0);
+      const lbl = dt.toLocaleDateString('fr-MA', { weekday: 'short' });
+      const dateLbl = dt.toLocaleDateString('fr-MA', { day: '2-digit', month: '2-digit' });
+      return `<div class="day-col ${selDay === d.d0 ? 'selected' : ''}" onclick="setDay(${d.d0})">
         ${d.rev > 0 ? `<span class="day-val">${Math.round(d.rev)}</span>` : ''}
         <div class="day-bar ${d.isToday ? 'today' : ''}" style="height:${Math.max(h, d.rev > 0 ? 4 : 2)}px"></div>
         <span class="day-lbl">${lbl}</span>
+        <span class="day-date">${dateLbl}</span>
       </div>`;
     }).join('') + `</div></div>`;
 
@@ -1652,7 +1724,21 @@ function renderSales() {
           </div>`;
         }).join('')) + `</div>`;
 
+  const prevChart = document.getElementById('dayChart');
+  const prevScroll = prevChart ? prevChart.scrollLeft : -1;
+
   el.innerHTML = html;
+
+  const chart = document.getElementById('dayChart');
+  if (chart) {
+    if (prevScroll >= 0) {
+      chart.scrollLeft = prevScroll;
+    } else {
+      const target = chart.querySelector('.day-col.selected');
+      if (target) chart.scrollLeft = Math.max(0, target.offsetLeft - chart.clientWidth / 2);
+      else chart.scrollLeft = chart.scrollWidth; // start at today
+    }
+  }
 }
 
 async function clearSales() {
