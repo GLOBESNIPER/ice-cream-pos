@@ -1,0 +1,68 @@
+-- Maalem POS — Supabase schema
+-- Paste this whole file in the Supabase SQL editor and click Run.
+
+create table if not exists products (
+  id bigint primary key,
+  name text not null,
+  cost numeric not null,
+  price numeric not null,
+  per_carton int not null,
+  initial_stock int not null,
+  stock int not null,
+  color text not null
+);
+
+create table if not exists sales (
+  id bigserial primary key,
+  client_ref int,
+  device text,
+  created_at timestamptz not null default now(),
+  total numeric not null,
+  profit numeric not null,
+  pieces int not null,
+  items jsonb not null
+);
+
+-- Atomic sale: inserts the sale and decrements stock in one transaction
+create or replace function record_sale(
+  p_client_ref int,
+  p_device text,
+  p_total numeric,
+  p_profit numeric,
+  p_pieces int,
+  p_items jsonb
+) returns bigint
+language plpgsql
+security definer
+as $$
+declare
+  v_id bigint;
+  itm jsonb;
+begin
+  insert into sales (client_ref, device, total, profit, pieces, items)
+  values (p_client_ref, p_device, p_total, p_profit, p_pieces, p_items)
+  returning id into v_id;
+
+  for itm in select * from jsonb_array_elements(p_items) loop
+    update products
+    set stock = greatest(stock - (itm->>'qty')::int, 0)
+    where id = (itm->>'id')::bigint;
+  end loop;
+
+  return v_id;
+end;
+$$;
+
+-- Open access for the app (UI access is PIN-protected; the anon key is public by design)
+alter table products enable row level security;
+alter table sales enable row level security;
+
+drop policy if exists "app products" on products;
+create policy "app products" on products for all using (true) with check (true);
+
+drop policy if exists "app sales" on sales;
+create policy "app sales" on sales for all using (true) with check (true);
+
+-- Realtime: push changes to all connected phones
+alter publication supabase_realtime add table products;
+alter publication supabase_realtime add table sales;

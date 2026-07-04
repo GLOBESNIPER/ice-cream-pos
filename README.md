@@ -30,3 +30,21 @@ Mobile-first point-of-sale web app. Sells per piece, tracks inventory and profit
 ## Deploy
 
 Import the repo at [vercel.com/new](https://vercel.com/new) — no build config needed. Pushes to `main` auto-deploy once connected.
+
+## Multi-device sync (Supabase)
+
+1. Create a free project at [supabase.com](https://supabase.com).
+2. In the project, open **SQL Editor**, paste the contents of `schema.sql`, and click **Run**.
+3. In **Project Settings → API**, copy the **Project URL** and the **anon public key**.
+4. Put them in `index.html`:
+   ```js
+   const SUPABASE_URL = 'https://xxxx.supabase.co';
+   const SUPABASE_ANON_KEY = 'eyJ...';
+   ```
+5. Push — done. All phones now share the same stock and sales in realtime.
+
+Sync behavior:
+- Header chip shows the state: **Sync** (green), **N en attente** (offline sales queued), **Hors ligne**, or **Local** (not configured).
+- Sales made offline are queued on the device and pushed automatically when the connection returns.
+- Stock changes and sales from other phones appear live via Supabase Realtime.
+- The first device to connect seeds the database with the built-in product list.

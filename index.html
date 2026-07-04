@@ -54,6 +54,21 @@
   .header-title .brand { font-size: 11px; opacity: .7; letter-spacing: .1em; text-transform: uppercase; }
   .header-title .page  { font-size: 18px; font-weight: 700; }
 
+  .sync-chip {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    background: rgba(255,255,255,.18);
+    border-radius: 50px;
+    padding: 2px 8px;
+    vertical-align: 2px;
+    margin-left: 4px;
+  }
+  .sync-chip.online { background: var(--success); color: #06281c; }
+  .sync-chip.pending { background: var(--warn); color: #2a1c02; }
+
   .header-actions { display: flex; gap: 8px; }
 
   .hdr-btn {
@@ -703,7 +718,7 @@
 <header>
   <div class="header-title">
     <span class="brand">Maalem</span>
-    <span class="page">Caisse</span>
+    <span class="page">Caisse <span class="sync-chip" id="syncChip">Local</span></span>
   </div>
   <div class="header-actions">
     <button class="hdr-btn" onclick="openSales()">Ventes</button>
@@ -845,10 +860,17 @@
   </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script>
+/* ── Supabase config ──
+   Fill these two values to enable multi-device sync.
+   Left empty, the app runs in local-only mode (data stays on this phone). */
+const SUPABASE_URL = '';
+const SUPABASE_ANON_KEY = '';
+
 // cost = purchase cost per piece, price = selling price per piece
 // perCarton = pieces per carton, initialStock = current inventory in pieces
-const PRODUCTS = [
+let PRODUCTS = [
   { id: 1, name: 'Platsch',    cost: 3.31,  price: 6,  perCarton: 32, initialStock: 96,  color: '#8b5cf6' },
   { id: 2, name: 'Scooby Doo', cost: 2.50,  price: 6,  perCarton: 40, initialStock: 80,  color: '#ec4899' },
   { id: 3, name: 'Cornion',    cost: 2.50,  price: 5,  perCarton: 40, initialStock: 120, color: '#06b6d4' },
@@ -876,6 +898,167 @@ function loadSales() {
 }
 function saveSales() {
   localStorage.setItem('maalem_sales', JSON.stringify(salesLog.slice(-1000)));
+}
+
+/* ── Remote sync (Supabase) ── */
+let db = null;
+let dbOnline = false;
+
+// stable per-device id so a phone ignores the realtime echo of its own sales
+let DEVICE_ID = localStorage.getItem('maalem_device');
+if (!DEVICE_ID) {
+  DEVICE_ID = 'dev-' + Math.random().toString(36).slice(2, 10);
+  localStorage.setItem('maalem_device', DEVICE_ID);
+}
+
+function loadPending() {
+  try {
+    const p = JSON.parse(localStorage.getItem('maalem_pending'));
+    return Array.isArray(p) ? p : [];
+  } catch (e) { return []; }
+}
+let pendingSales = loadPending();
+function savePending() {
+  localStorage.setItem('maalem_pending', JSON.stringify(pendingSales));
+}
+
+function setSyncChip() {
+  const chip = document.getElementById('syncChip');
+  if (!db) { chip.textContent = 'Local'; chip.className = 'sync-chip'; return; }
+  if (!dbOnline) { chip.textContent = 'Hors ligne'; chip.className = 'sync-chip'; return; }
+  if (pendingSales.length) {
+    chip.textContent = pendingSales.length + ' en attente';
+    chip.className = 'sync-chip pending';
+  } else {
+    chip.textContent = 'Sync';
+    chip.className = 'sync-chip online';
+  }
+}
+
+async function initRemote() {
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY || !window.supabase) { setSyncChip(); return; }
+  try {
+    db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    let { data: rows, error } = await db.from('products').select('*').order('id');
+    if (error) throw error;
+
+    if (!rows || rows.length === 0) {
+      // first run: seed the database from the built-in list
+      const seed = PRODUCTS.map(p => ({
+        id: p.id, name: p.name, cost: p.cost, price: p.price,
+        per_carton: p.perCarton, initial_stock: p.initialStock,
+        stock: stock[p.id] ?? p.initialStock, color: p.color
+      }));
+      const { error: seedErr } = await db.from('products').insert(seed);
+      if (seedErr) throw seedErr;
+      rows = seed;
+    }
+
+    applyRemoteProducts(rows);
+
+    const { data: saleRows, error: salesErr } = await db.from('sales')
+      .select('*').order('id', { ascending: false }).limit(1000);
+    if (salesErr) throw salesErr;
+    salesLog = (saleRows || []).reverse().map(r => ({
+      ref: r.client_ref ?? r.id,
+      ts: Date.parse(r.created_at),
+      total: Number(r.total), profit: Number(r.profit),
+      pieces: r.pieces, items: r.items
+    }));
+    saveSales();
+
+    dbOnline = true;
+    await flushPending();
+
+    // live updates from other phones
+    db.channel('pos-sync')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, payload => {
+        if (payload.new && payload.new.id) {
+          stock[payload.new.id] = payload.new.stock;
+          saveStock();
+          renderProducts(document.querySelector('.search-input').value);
+          if (document.getElementById('stockPanel').classList.contains('open')) renderStock();
+        }
+      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'sales' }, payload => {
+        const r = payload.new;
+        if (r.device === DEVICE_ID) return; // this phone already has its own sale
+        salesLog.push({
+          ref: r.client_ref ?? r.id, ts: Date.parse(r.created_at),
+          total: Number(r.total), profit: Number(r.profit),
+          pieces: r.pieces, items: r.items
+        });
+        saveSales();
+        if (document.getElementById('salesPanel').classList.contains('open')) renderSales();
+      })
+      .subscribe();
+
+    renderProducts(document.querySelector('.search-input').value);
+  } catch (e) {
+    dbOnline = false;
+    console.warn('Supabase indisponible, mode local:', e.message || e);
+  }
+  setSyncChip();
+}
+
+function applyRemoteProducts(rows) {
+  PRODUCTS = rows.map(r => ({
+    id: r.id, name: r.name, cost: Number(r.cost), price: Number(r.price),
+    perCarton: r.per_carton, initialStock: r.initial_stock, color: r.color
+  }));
+  const s = {};
+  rows.forEach(r => s[r.id] = r.stock);
+  stock = s;
+  saveStock();
+}
+
+async function pushSaleRemote(sale) {
+  if (!db) return;
+  try {
+    const { error } = await db.rpc('record_sale', {
+      p_client_ref: sale.ref, p_device: DEVICE_ID, p_total: sale.total,
+      p_profit: sale.profit, p_pieces: sale.pieces, p_items: sale.items
+    });
+    if (error) throw error;
+    dbOnline = true;
+  } catch (e) {
+    dbOnline = false;
+    pendingSales.push(sale);
+    savePending();
+  }
+  setSyncChip();
+}
+
+async function flushPending() {
+  if (!db || !pendingSales.length) return;
+  const queue = pendingSales.slice();
+  for (const sale of queue) {
+    try {
+      const { error } = await db.rpc('record_sale', {
+        p_client_ref: sale.ref, p_device: DEVICE_ID, p_total: sale.total,
+        p_profit: sale.profit, p_pieces: sale.pieces, p_items: sale.items
+      });
+      if (error) throw error;
+      pendingSales.shift();
+      savePending();
+      dbOnline = true;
+    } catch (e) {
+      dbOnline = false;
+      break;
+    }
+  }
+  setSyncChip();
+}
+
+async function pushStockRemote(id, value) {
+  if (!db) return;
+  try {
+    const { error } = await db.from('products').update({ stock: value }).eq('id', id);
+    if (error) throw error;
+    dbOnline = true;
+  } catch (e) { dbOnline = false; }
+  setSyncChip();
 }
 
 function loadStock() {
@@ -1057,15 +1240,17 @@ function checkout() {
   saveStock();
 
   // record sale
-  salesLog.push({
+  const sale = {
     ref: orderCount,
     ts: Date.now(),
     total: getTotal(),
     profit: getProfit(),
     pieces: getTotalPieces(),
     items: items.map(p => ({ id: p.id, name: p.name, qty: cart[p.id], price: p.price }))
-  });
+  };
+  salesLog.push(sale);
   saveSales();
+  pushSaleRemote(sale);
 
   const now = new Date();
   const dateStr = now.toLocaleDateString('fr-MA', { day: '2-digit', month: '2-digit', year: 'numeric' });
@@ -1199,11 +1384,15 @@ function setStock(id, value) {
   stock[id] = v;
   saveStock();
   updateStockSummary();
+  pushStockRemote(id, v);
 }
 
 function resetStock() {
   if (!confirm('Remettre le stock aux quantités initiales ?')) return;
-  PRODUCTS.forEach(p => stock[p.id] = p.initialStock);
+  PRODUCTS.forEach(p => {
+    stock[p.id] = p.initialStock;
+    pushStockRemote(p.id, p.initialStock);
+  });
   saveStock();
   renderStock();
 }
@@ -1389,10 +1578,16 @@ function renderSales() {
   el.innerHTML = html;
 }
 
-function clearSales() {
+async function clearSales() {
   if (!confirm('Effacer tout l\'historique des ventes ?')) return;
   salesLog = [];
+  pendingSales = [];
   saveSales();
+  savePending();
+  if (db) {
+    try { await db.from('sales').delete().gt('id', 0); } catch (e) {}
+  }
+  setSyncChip();
   renderSales();
 }
 
@@ -1409,6 +1604,14 @@ function clearSales() {
 
 renderProducts();
 updateUI();
+setSyncChip();
+initRemote();
+
+// retry pending sales regularly and when the app comes back to the foreground
+setInterval(flushPending, 30000);
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) flushPending();
+});
 </script>
 </body>
 </html>
