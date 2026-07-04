@@ -26,12 +26,15 @@ create table if not exists sales (
 
 -- in case an older version of this schema was run before
 alter table sales add column if not exists device text;
+alter table sales add column if not exists vendor text;
 drop function if exists record_sale(int, numeric, numeric, int, jsonb);
+drop function if exists record_sale(int, text, numeric, numeric, int, jsonb);
 
 -- Atomic sale: inserts the sale and decrements stock in one transaction
 create or replace function record_sale(
   p_client_ref int,
   p_device text,
+  p_vendor text,
   p_total numeric,
   p_profit numeric,
   p_pieces int,
@@ -44,8 +47,8 @@ declare
   v_id bigint;
   itm jsonb;
 begin
-  insert into sales (client_ref, device, total, profit, pieces, items)
-  values (p_client_ref, p_device, p_total, p_profit, p_pieces, p_items)
+  insert into sales (client_ref, device, vendor, total, profit, pieces, items)
+  values (p_client_ref, p_device, p_vendor, p_total, p_profit, p_pieces, p_items)
   returning id into v_id;
 
   for itm in select * from jsonb_array_elements(p_items) loop
@@ -58,7 +61,7 @@ begin
 end;
 $$;
 
-grant execute on function record_sale(int, text, numeric, numeric, int, jsonb) to anon, authenticated;
+grant execute on function record_sale(int, text, text, numeric, numeric, int, jsonb) to anon, authenticated;
 
 -- Open access for the app (UI access is PIN-protected; the anon key is public by design)
 alter table products enable row level security;

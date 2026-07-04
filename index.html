@@ -125,6 +125,34 @@
   }
   .tb-value { font-size: 15px; font-weight: 800; color: var(--purple-light); }
 
+  /* Vendor selector */
+  .vendor-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 10px 16px 0;
+  }
+  .vendor-lbl {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: .06em;
+  }
+  .vendor-chip {
+    flex: 1;
+    background: var(--surface2);
+    border: 1px solid rgba(167,139,250,.2);
+    color: var(--text-muted);
+    border-radius: 50px;
+    padding: 7px 0;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .vendor-chip.active { background: var(--purple); color: white; border-color: var(--purple); }
+
   /* Search */
   .search-wrap { padding: 12px 16px 0; }
   .search-input {
@@ -803,9 +831,16 @@
   </div>
 </header>
 
-<div class="today-bar" onclick="openSales()">
+<div class="today-bar" onclick="openJournal()">
   <span class="tb-label">Ventes aujourd'hui</span>
-  <span class="tb-value" id="todayTotal">0 DH · 0 ventes</span>
+  <span class="tb-value" id="todayTotal">0 ventes</span>
+</div>
+
+<div class="vendor-row">
+  <span class="vendor-lbl">Vendeur</span>
+  <button class="vendor-chip" data-v="Oussama" onclick="setVendor('Oussama')">Oussama</button>
+  <button class="vendor-chip" data-v="Ilyas" onclick="setVendor('Ilyas')">Ilyas</button>
+  <button class="vendor-chip" data-v="Autre" onclick="setVendor('Autre')">Autre</button>
 </div>
 
 <div class="search-wrap">
@@ -860,7 +895,7 @@
     <div class="receipt-body">
       <div class="receipt-meta">
         <span id="receiptRef"></span>
-        <span>Maalem</span>
+        <span id="receiptVendor">Maalem</span>
       </div>
       <div id="receiptLines"></div>
       <div class="receipt-footer">
@@ -908,6 +943,17 @@
     <button class="tab-btn" data-period="all" onclick="setPeriod('all')">Tout</button>
   </div>
   <div class="stock-list" id="salesContent"></div>
+</div>
+
+<!-- Journal du jour (salesperson, no PIN) -->
+<div class="stock-overlay" id="journalOverlay" onclick="closeJournal()"></div>
+<div class="stock-panel" id="journalPanel">
+  <div class="drawer-handle"></div>
+  <div class="drawer-header">
+    <span class="drawer-title">Journal du jour</span>
+    <button class="clear-btn" onclick="closeJournal()">Fermer</button>
+  </div>
+  <div class="stock-list" id="journalContent"></div>
 </div>
 
 <!-- PIN -->
@@ -960,6 +1006,31 @@ let PRODUCTS = [
 const DEFAULT_PRODUCTS = PRODUCTS.slice();
 
 const LOW_STOCK = 15;
+
+/* Sellers — each has a personal PIN to switch to their name */
+const VENDORS = [
+  { name: 'Oussama', pin: '1111' },
+  { name: 'Ilyas',   pin: '2222' },
+  { name: 'Autre',   pin: '3333' },
+];
+const VENDOR_NAMES = VENDORS.map(v => v.name);
+let currentVendor = localStorage.getItem('maalem_vendor') || VENDOR_NAMES[0];
+if (!VENDOR_NAMES.includes(currentVendor)) currentVendor = VENDOR_NAMES[0];
+
+function setVendor(v) {
+  if (v === currentVendor) return;
+  requirePin('vendor:' + v);
+}
+function doSetVendor(v) {
+  currentVendor = v;
+  localStorage.setItem('maalem_vendor', v);
+  renderVendorChips();
+  if (navigator.vibrate) navigator.vibrate(15);
+}
+function renderVendorChips() {
+  document.querySelectorAll('.vendor-chip').forEach(b =>
+    b.classList.toggle('active', b.dataset.v === currentVendor));
+}
 
 let cart = {}; // { productId: pieces }
 let orderCount = parseInt(localStorage.getItem('maalem_orders') || '0');
@@ -1061,7 +1132,7 @@ async function initRemote() {
       ref: r.client_ref ?? r.id,
       ts: Date.parse(r.created_at),
       total: Number(r.total), profit: Number(r.profit),
-      pieces: r.pieces, items: r.items
+      vendor: r.vendor, pieces: r.pieces, items: r.items
     }));
     saveSales();
 
@@ -1084,7 +1155,7 @@ async function initRemote() {
         salesLog.push({
           ref: r.client_ref ?? r.id, ts: Date.parse(r.created_at),
           total: Number(r.total), profit: Number(r.profit),
-          pieces: r.pieces, items: r.items
+          vendor: r.vendor, pieces: r.pieces, items: r.items
         });
         saveSales();
         if (document.getElementById('salesPanel').classList.contains('open')) renderSales();
@@ -1118,8 +1189,8 @@ async function pushSaleRemote(sale) {
   pushInFlight++;
   try {
     const { error } = await db.rpc('record_sale', {
-      p_client_ref: sale.ref, p_device: DEVICE_ID, p_total: sale.total,
-      p_profit: sale.profit, p_pieces: sale.pieces, p_items: sale.items
+      p_client_ref: sale.ref, p_device: DEVICE_ID, p_vendor: sale.vendor || null,
+      p_total: sale.total, p_profit: sale.profit, p_pieces: sale.pieces, p_items: sale.items
     });
     if (error) throw error;
     dbOnline = true;
@@ -1153,7 +1224,7 @@ async function refreshRemote() {
       ref: r.client_ref ?? r.id,
       ts: Date.parse(r.created_at),
       total: Number(r.total), profit: Number(r.profit),
-      pieces: r.pieces, items: r.items
+      vendor: r.vendor, pieces: r.pieces, items: r.items
     }));
     // keep offline sales that have not reached the database yet
     salesLog = dbSales.concat(pendingSales);
@@ -1174,8 +1245,8 @@ async function flushPending() {
   for (const sale of queue) {
     try {
       const { error } = await db.rpc('record_sale', {
-        p_client_ref: sale.ref, p_device: DEVICE_ID, p_total: sale.total,
-        p_profit: sale.profit, p_pieces: sale.pieces, p_items: sale.items
+        p_client_ref: sale.ref, p_device: DEVICE_ID, p_vendor: sale.vendor || null,
+        p_total: sale.total, p_profit: sale.profit, p_pieces: sale.pieces, p_items: sale.items
       });
       if (error) throw error;
       pendingSales.shift();
@@ -1429,6 +1500,7 @@ function checkout() {
   const sale = {
     ref: orderCount,
     ts: Date.now(),
+    vendor: currentVendor,
     total: getTotal(),
     profit: getProfit(),
     pieces: getTotalPieces(),
@@ -1444,6 +1516,7 @@ function checkout() {
 
   document.getElementById('receiptDate').textContent = dateStr + ' — ' + timeStr;
   document.getElementById('receiptRef').textContent = 'Vente #' + String(orderCount).padStart(4, '0');
+  document.getElementById('receiptVendor').textContent = 'Vendeur: ' + currentVendor;
 
   document.getElementById('receiptLines').innerHTML = items.map(p => `
     <div class="receipt-line">
@@ -1480,21 +1553,33 @@ let pinUnlocked = false;
 let pinTarget = null;
 let pinEntry = '';
 
+function expectedPin(target) {
+  if (target === 'reset-sales') return PIN_RESET;
+  if (target.startsWith('vendor:')) {
+    const v = VENDORS.find(x => x.name === target.slice(7));
+    return v ? v.pin : PIN_CODE;
+  }
+  return PIN_CODE;
+}
+
 function requirePin(target) {
-  // the reset code is asked every time; access unlock lasts for the session
-  if (pinUnlocked && target !== 'reset-sales') { openProtected(target); return; }
+  // owner access unlock lasts for the session; reset and vendor codes are asked every time
+  const sessionUnlockable = target === 'stock' || target === 'sales';
+  if (pinUnlocked && sessionUnlockable) { openProtected(target); return; }
   pinTarget = target;
   pinEntry = '';
   renderPinDots();
   document.getElementById('pinSub').textContent =
     target === 'stock' ? 'Accès au stock' :
     target === 'reset-sales' ? 'Code pour effacer les ventes' :
+    target.startsWith('vendor:') ? 'Code de ' + target.slice(7) :
     'Accès aux ventes';
   document.getElementById('pinOverlay').classList.add('open');
 }
 function openProtected(t) {
   if (t === 'stock') doOpenStock();
   else if (t === 'reset-sales') doClearSales();
+  else if (t.startsWith('vendor:')) doSetVendor(t.slice(7));
   else doOpenSales();
 }
 function pinKey(d) {
@@ -1502,9 +1587,8 @@ function pinKey(d) {
   pinEntry += d;
   renderPinDots();
   if (pinEntry.length === 4) {
-    const expected = pinTarget === 'reset-sales' ? PIN_RESET : PIN_CODE;
-    if (pinEntry === expected) {
-      if (pinTarget !== 'reset-sales') pinUnlocked = true;
+    if (pinEntry === expectedPin(pinTarget)) {
+      if (pinTarget === 'stock' || pinTarget === 'sales') pinUnlocked = true;
       closePin();
       openProtected(pinTarget);
       if (navigator.vibrate) navigator.vibrate(30);
@@ -1591,6 +1675,70 @@ function resetStock() {
   });
   saveStock();
   renderStock();
+}
+
+/* Journal du jour — salesperson view, no PIN, today only, no profit */
+function openJournal() {
+  renderJournal();
+  document.getElementById('journalOverlay').classList.add('open');
+  document.getElementById('journalPanel').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+function closeJournal() {
+  document.getElementById('journalOverlay').classList.remove('open');
+  document.getElementById('journalPanel').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+function renderJournal() {
+  const t0 = startOfDay(Date.now());
+  const today = salesLog.filter(s => s.ts >= t0);
+  const rev = today.reduce((s, x) => s + x.total, 0);
+  const pieces = today.reduce((s, x) => s + x.pieces, 0);
+
+  let html = `
+    <div class="stats-grid">
+      <div class="stat-tile"><div class="stat-label">Total encaissé</div><div class="stat-value">${fmt(rev)}</div></div>
+      <div class="stat-tile"><div class="stat-label">Ventes</div><div class="stat-value">${today.length} <span style="font-size:12px;color:var(--text-muted)">· ${pieces} pcs</span></div></div>
+    </div>`;
+
+  // per-seller totals for today
+  const perV = {};
+  today.forEach(s => {
+    const v = s.vendor || 'Autre';
+    perV[v] = perV[v] || { n: 0, rev: 0 };
+    perV[v].n++;
+    perV[v].rev += s.total;
+  });
+  const vendorNames = VENDOR_NAMES.concat(Object.keys(perV).filter(v => !VENDOR_NAMES.includes(v)));
+  html += `<div class="sales-section"><h3>Par vendeur</h3>` +
+    vendorNames.map(v => {
+      const d = perV[v] || { n: 0, rev: 0 };
+      return `<div class="sale-row">
+        <div class="sr-ref">${v}</div>
+        <div class="sr-amounts">
+          <div class="sr-total">${fmt(d.rev)}</div>
+          <div class="sr-detail">${d.n} vente${d.n > 1 ? 's' : ''}</div>
+        </div>
+      </div>`;
+    }).join('') + `</div>`;
+
+  html += `<div class="sales-section"><h3>Ventes du jour</h3>` +
+    (today.length === 0
+      ? `<div class="empty-msg">Aucune vente aujourd'hui</div>`
+      : today.slice().reverse().map(s => {
+          const when = new Date(s.ts).toLocaleTimeString('fr-MA', { hour: '2-digit', minute: '2-digit' });
+          const summary = s.items.map(it => `${it.qty} ${it.name}`).join(', ');
+          return `<div class="sale-row">
+            <div>
+              <div class="sr-ref">#${String(s.ref).padStart(4, '0')} · ${when}${s.vendor ? ' · ' + s.vendor : ''}</div>
+              <div class="sr-detail">${summary}</div>
+            </div>
+            <div class="sr-amounts"><div class="sr-total">${fmt(s.total)}</div></div>
+          </div>`;
+        }).join('')) + `</div>`;
+
+  document.getElementById('journalContent').innerHTML = html;
 }
 
 /* Sales panel */
@@ -1797,7 +1945,7 @@ function renderSales() {
           const summary = s.items.map(it => `${it.qty} ${it.name}`).join(', ');
           return `<div class="sale-row">
             <div>
-              <div class="sr-ref">#${String(s.ref).padStart(4, '0')} · ${when}</div>
+              <div class="sr-ref">#${String(s.ref).padStart(4, '0')} · ${when}${s.vendor ? ' · ' + s.vendor : ''}</div>
               <div class="sr-detail">${summary}</div>
             </div>
             <div class="sr-amounts">
@@ -1841,7 +1989,7 @@ async function doClearSales() {
 }
 
 // Swipe down to close panels
-[['cartDrawer', closeCart], ['stockPanel', closeStock], ['salesPanel', closeSales]].forEach(([id, closeFn]) => {
+[['cartDrawer', closeCart], ['stockPanel', closeStock], ['salesPanel', closeSales], ['journalPanel', closeJournal]].forEach(([id, closeFn]) => {
   let startY = 0;
   const el = document.getElementById(id);
   el.addEventListener('touchstart', e => { startY = e.touches[0].clientY; }, { passive: true });
@@ -1853,6 +2001,7 @@ async function doClearSales() {
 
 renderProducts();
 updateUI();
+renderVendorChips();
 setSyncChip();
 initRemote();
 
