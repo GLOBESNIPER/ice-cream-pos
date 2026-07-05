@@ -786,8 +786,31 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: 8px;
     padding: 10px 0;
     border-bottom: 1px solid rgba(255,255,255,.06);
+  }
+  .sale-row.cancelled .sr-ref,
+  .sale-row.cancelled .sr-total { text-decoration: line-through; opacity: .55; }
+  .sale-row.negative .sr-total { color: var(--danger); }
+  .cancel-btn {
+    background: none;
+    border: 1.5px solid var(--danger);
+    color: var(--danger);
+    border-radius: 50px;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 5px 10px;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    flex-shrink: 0;
+  }
+  .cancel-btn:active { background: rgba(239,68,68,.15); }
+  .cancelled-tag {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--danger);
+    text-transform: uppercase;
   }
   .sale-row:last-child { border-bottom: none; }
   .sr-ref { font-size: 13px; font-weight: 700; }
@@ -1072,7 +1095,10 @@
   <div class="drawer-handle"></div>
   <div class="drawer-header">
     <span class="drawer-title">Ventes</span>
-    <button class="clear-btn" onclick="clearSales()">Effacer</button>
+    <div>
+      <button class="clear-btn" style="color:var(--warn)" onclick="addAdjustment()">Ajustement</button>
+      <button class="clear-btn" onclick="clearSales()">Effacer</button>
+    </div>
   </div>
   <div class="tab-row">
     <button class="tab-btn active" data-period="today" onclick="setPeriod('today')">Aujourd'hui</button>
@@ -1885,6 +1911,72 @@ function resetStock() {
   renderStock();
 }
 
+/* Cancellations & adjustments */
+function isReversal(s) { return s.total < 0; }
+function isCancelled(s) {
+  return s.total > 0 && salesLog.some(r =>
+    r.total < 0 && r.ref === s.ref && -r.total === s.total && r.ts >= s.ts);
+}
+function saleSummary(s) {
+  return s.items.map(it => it.qty ? `${Math.abs(it.qty)} ${it.name}` : it.name).join(', ');
+}
+
+function cancelSale(ref, ts) {
+  const sale = salesLog.find(s => s.ref === ref && s.ts === ts);
+  if (!sale || isReversal(sale) || isCancelled(sale)) return;
+  if (!confirm(`Annuler la vente #${String(ref).padStart(4, '0')} (${fmt(sale.total)}) ?\nLe stock sera remis.`)) return;
+
+  const rev = {
+    ref: sale.ref,
+    ts: Date.now(),
+    vendor: sale.vendor,
+    total: -sale.total,
+    profit: -sale.profit,
+    pieces: -sale.pieces,
+    items: sale.items.map(it => ({ ...it, qty: -it.qty }))
+  };
+
+  // put the pieces back in stock
+  sale.items.forEach(it => {
+    stock[it.id] = (stock[it.id] || 0) + it.qty;
+  });
+  saveStock();
+
+  salesLog.push(rev);
+  saveSales();
+  pushSaleRemote(rev);
+
+  renderProducts(document.querySelector('.search-input').value);
+  if (document.getElementById('journalPanel').classList.contains('open')) renderJournal();
+  if (document.getElementById('salesPanel').classList.contains('open')) renderSales();
+  if (navigator.vibrate) navigator.vibrate([40, 30, 40]);
+}
+
+function addAdjustment() {
+  const raw = prompt('Montant à retirer du total (DH) :');
+  if (raw === null) return;
+  const amt = parseFloat(String(raw).replace(',', '.'));
+  if (!amt || amt <= 0) { alert('Montant invalide'); return; }
+  const label = prompt('Motif (optionnel) :') || 'Ajustement';
+
+  orderCount++;
+  localStorage.setItem('maalem_orders', orderCount);
+  const adj = {
+    ref: orderCount,
+    ts: Date.now(),
+    vendor: currentVendor,
+    total: -amt,
+    profit: -amt,
+    pieces: 0,
+    items: [{ id: 0, name: label, qty: 0, price: 0 }]
+  };
+  salesLog.push(adj);
+  saveSales();
+  pushSaleRemote(adj);
+  renderSales();
+  updateTodayBar();
+}
+
 /* Journal du jour — salesperson view, no PIN, today only, no profit */
 function openJournal() {
   renderJournal();
@@ -1936,13 +2028,16 @@ function renderJournal() {
       ? `<div class="empty-msg">Aucune vente aujourd'hui</div>`
       : today.slice().reverse().map(s => {
           const when = new Date(s.ts).toLocaleTimeString('fr-MA', { hour: '2-digit', minute: '2-digit' });
-          const summary = s.items.map(it => `${it.qty} ${it.name}`).join(', ');
-          return `<div class="sale-row">
+          const rev = isReversal(s);
+          const cancelled = isCancelled(s);
+          const refLbl = (rev ? 'Annulation #' : '#') + String(s.ref).padStart(4, '0');
+          return `<div class="sale-row ${rev ? 'negative' : ''} ${cancelled ? 'cancelled' : ''}">
             <div>
-              <div class="sr-ref">#${String(s.ref).padStart(4, '0')} · ${when}${s.vendor ? ' · ' + s.vendor : ''}</div>
-              <div class="sr-detail">${summary}</div>
+              <div class="sr-ref">${refLbl} · ${when}${s.vendor ? ' · ' + s.vendor : ''} ${cancelled ? '<span class="cancelled-tag">Annulée</span>' : ''}</div>
+              <div class="sr-detail">${saleSummary(s)}</div>
             </div>
             <div class="sr-amounts"><div class="sr-total">${fmt(s.total)}</div></div>
+            ${!rev && !cancelled ? `<button class="cancel-btn" onclick="cancelSale(${s.ref}, ${s.ts})">Annuler</button>` : ''}
           </div>`;
         }).join('')) + `</div>`;
 
@@ -2138,7 +2233,7 @@ function renderSales() {
   const maxRev = Math.max(...days.map(d => d.rev), 1);
   html += `<div class="sales-section"><h3>Revenu par jour — touchez un jour</h3><div class="day-chart" id="dayChart">` +
     days.map(d => {
-      const h = Math.round(60 * d.rev / maxRev);
+      const h = Math.round(60 * Math.max(d.rev, 0) / maxRev);
       const dt = new Date(d.d0);
       const lbl = dt.toLocaleDateString('fr-MA', { weekday: 'short' });
       const dateLbl = dt.toLocaleDateString('fr-MA', { day: '2-digit', month: '2-digit' });
@@ -2179,16 +2274,19 @@ function renderSales() {
           const isToday = startOfDay(s.ts) === startOfDay(Date.now());
           const when = (isToday ? '' : d.toLocaleDateString('fr-MA', { day: '2-digit', month: '2-digit' }) + ' ') +
             d.toLocaleTimeString('fr-MA', { hour: '2-digit', minute: '2-digit' });
-          const summary = s.items.map(it => `${it.qty} ${it.name}`).join(', ');
-          return `<div class="sale-row">
+          const rev = isReversal(s);
+          const cancelled = isCancelled(s);
+          const refLbl = (rev ? 'Annulation #' : '#') + String(s.ref).padStart(4, '0');
+          return `<div class="sale-row ${rev ? 'negative' : ''} ${cancelled ? 'cancelled' : ''}">
             <div>
-              <div class="sr-ref">#${String(s.ref).padStart(4, '0')} · ${when}${s.vendor ? ' · ' + s.vendor : ''}</div>
-              <div class="sr-detail">${summary}</div>
+              <div class="sr-ref">${refLbl} · ${when}${s.vendor ? ' · ' + s.vendor : ''} ${cancelled ? '<span class="cancelled-tag">Annulée</span>' : ''}</div>
+              <div class="sr-detail">${saleSummary(s)}</div>
             </div>
             <div class="sr-amounts">
               <div class="sr-total">${fmt(s.total)}</div>
-              <div class="sr-profit">+${fmt(s.profit)}</div>
+              ${rev ? '' : `<div class="sr-profit">+${fmt(s.profit)}</div>`}
             </div>
+            ${!rev && !cancelled ? `<button class="cancel-btn" onclick="cancelSale(${s.ref}, ${s.ts})">Annuler</button>` : ''}
           </div>`;
         }).join('')) + `</div>`;
 
