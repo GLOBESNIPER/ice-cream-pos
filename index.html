@@ -1191,8 +1191,15 @@ let PRODUCTS = [
   { id: 9, name: 'Magnum',     cost: 17.50, price: 23, perCarton: 20, initialStock: 80,  color: '#a16207' },
   { id: 10, name: 'Slushy 5',  cost: 0,     price: 5,  perCarton: 1,  initialStock: 100, color: '#0ea5e9', slush: true },
   { id: 11, name: 'Slushy 10', cost: 0,     price: 10, perCarton: 1,  initialStock: 100, color: '#2563eb', slush: true },
+  // stockOf: variant that sells from another product's stock at a different price
+  { id: 12, name: 'Cornion Perso', cost: 2.50, price: 3, perCarton: 40, initialStock: 0, color: '#14b8a6', stockOf: 3 },
 ];
 const DEFAULT_PRODUCTS = PRODUCTS.slice();
+
+function stockKey(p) { return p.stockOf || p.id; }
+function cartCountForStock(key) {
+  return PRODUCTS.reduce((s, p) => stockKey(p) === key ? s + (cart[p.id] || 0) : s, 0);
+}
 
 const LOW_STOCK = 15;
 
@@ -1291,21 +1298,23 @@ async function initRemote() {
       stock: stock[p.id] ?? p.initialStock, color: p.color
     });
 
+    const realProducts = DEFAULT_PRODUCTS.filter(p => !p.stockOf);
+
     if (!rows || rows.length === 0) {
       // first run: seed the database from the built-in list
-      const seed = DEFAULT_PRODUCTS.map(toRow);
+      const seed = realProducts.map(toRow);
       const { error: seedErr } = await db.from('products').insert(seed);
       if (seedErr) throw seedErr;
       rows = seed;
     } else {
       // add any new built-in products the database does not have yet
-      const missing = DEFAULT_PRODUCTS.filter(d => !rows.some(r => r.id === d.id)).map(toRow);
+      const missing = realProducts.filter(d => !rows.some(r => r.id === d.id)).map(toRow);
       if (missing.length) {
         const { error: addErr } = await db.from('products').insert(missing);
         if (!addErr) rows = rows.concat(missing);
       }
       // push corrected prices/costs/names from the built-in list (stock stays DB-owned)
-      for (const d of DEFAULT_PRODUCTS) {
+      for (const d of realProducts) {
         const r = rows.find(x => x.id === d.id);
         if (!r) continue;
         if (Number(r.cost) !== d.cost || Number(r.price) !== d.price ||
@@ -1370,6 +1379,10 @@ function applyRemoteProducts(rows) {
     perCarton: r.per_carton, initialStock: r.initial_stock, color: r.color,
     slush: !!(DEFAULT_PRODUCTS.find(d => d.id === r.id) || {}).slush
   }));
+  // re-attach virtual variants (they live in code, not in the database)
+  DEFAULT_PRODUCTS.filter(p => p.stockOf).forEach(v => {
+    if (!PRODUCTS.some(p => p.id === v.id)) PRODUCTS.push(v);
+  });
   const s = {};
   rows.forEach(r => s[r.id] = r.stock);
   stock = s;
@@ -1542,12 +1555,14 @@ function fmt(n) {
 }
 
 function addToCart(id) {
-  const inCart = cart[id] || 0;
-  if (inCart >= (stock[id] || 0)) {
+  const p = PRODUCTS.find(x => x.id === id);
+  if (!p) return;
+  const key = stockKey(p);
+  if (cartCountForStock(key) >= (stock[key] || 0)) {
     if (navigator.vibrate) navigator.vibrate([60, 40, 60]);
     return;
   }
-  cart[id] = inCart + 1;
+  cart[id] = (cart[id] || 0) + 1;
   updateUI();
   if (navigator.vibrate) navigator.vibrate(15);
 }
@@ -1678,7 +1693,7 @@ function renderProducts(query = '') {
   }
 
   grid.innerHTML = filtered.map(p => {
-    const s = stock[p.id] || 0;
+    const s = stock[stockKey(p)] || 0;
     return `
     <div class="product-card ${s <= 0 ? 'out-of-stock' : ''}" data-id="${p.id}" onclick="addToCart(${p.id})">
       <span class="qty-chip" data-id="${p.id}">${cart[p.id] || 0}</span>
@@ -1710,9 +1725,10 @@ function checkout() {
   orderCount++;
   localStorage.setItem('maalem_orders', orderCount);
 
-  // decrement stock
+  // decrement stock (variants draw from their parent product's stock)
   items.forEach(p => {
-    stock[p.id] = Math.max(0, (stock[p.id] || 0) - cart[p.id]);
+    const key = stockKey(p);
+    stock[key] = Math.max(0, (stock[key] || 0) - cart[p.id]);
   });
   saveStock();
 
@@ -1724,7 +1740,7 @@ function checkout() {
     total: getTotal(),
     profit: getProfit(),
     pieces: getTotalPieces(),
-    items: items.map(p => ({ id: p.id, name: p.name, qty: cart[p.id], price: p.price }))
+    items: items.map(p => ({ id: stockKey(p), name: p.name, qty: cart[p.id], price: p.price }))
   };
   salesLog.push(sale);
   saveSales();
@@ -1871,7 +1887,7 @@ function closeStock() {
 
 function renderStock() {
   const list = document.getElementById('stockList');
-  list.innerHTML = PRODUCTS.map(p => {
+  list.innerHTML = PRODUCTS.filter(p => !p.stockOf).map(p => {
     const s = stock[p.id] || 0;
     const cartons = (s / p.perCarton).toFixed(1).replace(/\.0$/, '');
     return `
@@ -1889,11 +1905,12 @@ function renderStock() {
 }
 
 function updateStockSummary() {
-  const glaces = PRODUCTS.filter(p => !p.slush)
+  const real = PRODUCTS.filter(p => !p.stockOf);
+  const glaces = real.filter(p => !p.slush)
     .reduce((sum, p) => sum + (stock[p.id] || 0) * p.price, 0);
-  const slush = PRODUCTS.filter(p => p.slush)
+  const slush = real.filter(p => p.slush)
     .reduce((sum, p) => sum + (stock[p.id] || 0) * p.price, 0);
-  const pieces = PRODUCTS.reduce((sum, p) => sum + (stock[p.id] || 0), 0);
+  const pieces = real.reduce((sum, p) => sum + (stock[p.id] || 0), 0);
   document.getElementById('stockValue').textContent = fmt(glaces);
   document.getElementById('stockValueSlush').textContent = fmt(slush);
   document.getElementById('stockPieces').textContent = pieces + ' pcs';
@@ -2137,7 +2154,7 @@ function computeInsights(filtered) {
   salesLog.filter(s => s.ts >= weekAgo).forEach(s =>
     s.items.forEach(it => { sold7[it.id] = (sold7[it.id] || 0) + it.qty; }));
   let urgent = null;
-  PRODUCTS.forEach(p => {
+  PRODUCTS.filter(p => !p.stockOf).forEach(p => {
     const rate = (sold7[p.id] || 0) / 7;
     if (rate > 0 && (stock[p.id] || 0) > 0) {
       const days = Math.floor((stock[p.id] || 0) / rate);
@@ -2148,8 +2165,8 @@ function computeInsights(filtered) {
     ins.push({ tag: '!', warn: true, text: `Au rythme actuel, <b>${urgent.name}</b> sera épuisé dans ~${urgent.days} jour${urgent.days > 1 ? 's' : ''} — pensez à recommander` });
   }
 
-  const outs = PRODUCTS.filter(p => (stock[p.id] || 0) <= 0).map(p => p.name);
-  const lows = PRODUCTS.filter(p => (stock[p.id] || 0) > 0 && stock[p.id] <= LOW_STOCK).map(p => p.name);
+  const outs = PRODUCTS.filter(p => !p.stockOf && (stock[p.id] || 0) <= 0).map(p => p.name);
+  const lows = PRODUCTS.filter(p => !p.stockOf && (stock[p.id] || 0) > 0 && stock[p.id] <= LOW_STOCK).map(p => p.name);
   if (outs.length) ins.push({ tag: '!', warn: true, text: `Rupture de stock : <b>${outs.join(', ')}</b>` });
   if (lows.length) ins.push({ tag: '!', warn: true, text: `Stock bas : <b>${lows.join(', ')}</b>` });
 
