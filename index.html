@@ -1019,6 +1019,11 @@
       <span class="totals-label">Pièces</span>
       <span class="totals-value" id="totalPieces">0</span>
     </div>
+    <div class="totals-row">
+      <span class="totals-label">Remise (DH)</span>
+      <input class="cc-input" id="discountInput" type="number" min="0" inputmode="decimal"
+        placeholder="0" oninput="updateUI()">
+    </div>
     <div class="totals-row totals-total">
       <span class="totals-label">Total</span>
       <span class="totals-value" id="totalAmount">0 DH</span>
@@ -1059,6 +1064,8 @@
       <div id="receiptLines"></div>
       <div class="receipt-footer">
         <div class="rf-row"><span>Pièces</span><span id="rPieces"></span></div>
+        <div class="rf-row" id="rSubRow" style="display:none"><span>Sous-total</span><span id="rSubtotal"></span></div>
+        <div class="rf-row" id="rRemiseRow" style="display:none"><span>Remise</span><span id="rRemise" style="color:var(--danger);font-weight:700"></span></div>
         <div class="rf-row" id="rReceivedRow" style="display:none"><span>Reçu</span><span id="rReceived"></span></div>
         <div class="rf-row" id="rChangeRow" style="display:none"><span>À rendre</span><span id="rChange" style="color:var(--success);font-weight:700"></span></div>
         <div class="rf-total">
@@ -1191,8 +1198,6 @@ let PRODUCTS = [
   { id: 9, name: 'Magnum',     cost: 17.50, price: 23, perCarton: 20, initialStock: 80,  color: '#a16207' },
   { id: 10, name: 'Slushy 5',  cost: 0,     price: 5,  perCarton: 1,  initialStock: 100, color: '#0ea5e9', slush: true },
   { id: 11, name: 'Slushy 10', cost: 0,     price: 10, perCarton: 1,  initialStock: 100, color: '#2563eb', slush: true },
-  // stockOf: variant that sells from another product's stock at a different price
-  { id: 12, name: 'Cornion Perso', cost: 2.50, price: 3, perCarton: 40, initialStock: 0, color: '#14b8a6', stockOf: 3 },
 ];
 const DEFAULT_PRODUCTS = PRODUCTS.slice();
 
@@ -1550,6 +1555,13 @@ function getProfit() {
 function getTotalPieces() {
   return Object.values(cart).reduce((s, q) => s + q, 0);
 }
+function getDiscount() {
+  const v = parseFloat(document.getElementById('discountInput').value) || 0;
+  return Math.min(Math.max(v, 0), getTotal());
+}
+function getGrandTotal() {
+  return getTotal() - getDiscount();
+}
 function fmt(n) {
   return (Math.round(n * 100) / 100).toLocaleString('fr-MA') + ' DH';
 }
@@ -1577,6 +1589,7 @@ function removeFromCart(id) {
 
 function clearCart() {
   cart = {};
+  document.getElementById('discountInput').value = '';
   quickCash(0);
   updateUI();
   closeCart();
@@ -1589,7 +1602,7 @@ function quickCash(v) {
 }
 function updateChange() {
   const received = parseFloat(document.getElementById('cashReceived').value) || 0;
-  const total = getTotal();
+  const total = getGrandTotal();
   const el = document.getElementById('changeResult');
   if (received <= 0 || total <= 0) {
     el.textContent = '';
@@ -1625,7 +1638,7 @@ function updateTodayBar() {
 }
 
 function updateUI() {
-  const total = getTotal();
+  const total = getGrandTotal();
   const pieces = getTotalPieces();
   const itemCount = Object.keys(cart).length;
   updateTodayBar();
@@ -1732,15 +1745,17 @@ function checkout() {
   });
   saveStock();
 
-  // record sale
+  // record sale (a discount is stored as a zero-qty negative-price line)
+  const discount = getDiscount();
   const sale = {
     ref: orderCount,
     ts: Date.now(),
     vendor: currentVendor,
-    total: getTotal(),
-    profit: getProfit(),
+    total: getGrandTotal(),
+    profit: getProfit() - discount,
     pieces: getTotalPieces(),
     items: items.map(p => ({ id: stockKey(p), name: p.name, qty: cart[p.id], price: p.price }))
+      .concat(discount > 0 ? [{ id: 0, name: 'Remise', qty: 0, price: -discount }] : [])
   };
   salesLog.push(sale);
   saveSales();
@@ -1765,7 +1780,15 @@ function checkout() {
   `).join('');
 
   document.getElementById('rPieces').textContent = getTotalPieces() + ' pcs';
-  document.getElementById('rTotal').textContent = fmt(getTotal());
+  document.getElementById('rTotal').textContent = fmt(getGrandTotal());
+
+  // discount on the receipt
+  document.getElementById('rSubRow').style.display = discount > 0 ? 'flex' : 'none';
+  document.getElementById('rRemiseRow').style.display = discount > 0 ? 'flex' : 'none';
+  if (discount > 0) {
+    document.getElementById('rSubtotal').textContent = fmt(getTotal());
+    document.getElementById('rRemise').textContent = '-' + fmt(discount);
+  }
 
   // change calculator carried to the receipt
   const received = parseFloat(document.getElementById('cashReceived').value) || 0;
@@ -1774,7 +1797,7 @@ function checkout() {
   document.getElementById('rChangeRow').style.display = showCash ? 'flex' : 'none';
   if (showCash) {
     document.getElementById('rReceived').textContent = fmt(received);
-    document.getElementById('rChange').textContent = fmt(Math.max(0, received - getTotal()));
+    document.getElementById('rChange').textContent = fmt(Math.max(0, received - getGrandTotal()));
   }
 
   closeCart();
@@ -1785,6 +1808,7 @@ function checkout() {
 function closeReceipt() {
   document.getElementById('receiptOverlay').classList.remove('open');
   cart = {};
+  document.getElementById('discountInput').value = '';
   quickCash(0);
   renderProducts(document.querySelector('.search-input').value);
 }
